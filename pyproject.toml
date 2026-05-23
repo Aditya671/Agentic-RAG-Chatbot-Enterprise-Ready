@@ -1,78 +1,64 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "agentic-rag-chatbot-enterprise-ready"
-version = "1.0.0"
-description = "POC - A global enterprise Agentic RAG system featuring multi-agent orchestration and cloud persistence."
-authors = [
-    { name = "Aditya Gupta", email = "aditya.gupta671@gmail.com" }
-]
+name = "agentic-rag-chatbot-azure-native"
+version = "0.1.0"
+description = "Agentic RAG Chatbot Azure Native – production‑ready version"
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
-license = {file = "LICENSE"}
-
+requires-python = ">=3.12"
+license = { text = "MIT" }
+keywords = ["azure", "rag", "chatbot", "agentic", "llamaindex"]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "Topic :: Software Development :: Libraries :: Application Frameworks",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
 ]
-
 dependencies = [
-    "chainlit",
-    "llama-index",
-    "llama-index-llms-openai",
-    "llama-index-llms-azure-openai",
-    "llama-index-embeddings-azure-openai",
-    "llama-index-vector-stores-azureaisearch",
-    "azure-identity",
-    "azure-keyvault-secrets",
-    "azure-storage-blob",
-    "azure-cosmos",
-    "azure-search-documents",
-    "azure-ai-projects",
-    "azure-ai-inference",
-    "botocore",
-    "boto3",
-    "openai",
-    "langchain",
-    "pandas",
-    "pandasai",
-    "pandasai_openai",
-    "python-dotenv",
-    "nest-asyncio",
-    "requests",
-    "markdown",
-    "pymongo",
-    "pyMupdf",
-    "xhtml2pdf",
-    "celery",
-    "motor",
-    "docx",
-    "e2b"
+    "chainlit>=2.0.0",
+    "llama-index>=0.10.0",
+    "llama-index-llms-openai>=0.1.0",
+    "llama-index-llms-azure-openai>=0.1.0",
+    "llama-index-embeddings-azure-openai>=0.1.0",
+    "llama-index-vector-stores-azureaisearch>=0.1.0",
+    "azure-identity>=1.15.0",
+    "azure-keyvault-secrets>=4.8.0",
+    "azure-storage-blob>=12.19.0",
+    "azure-cosmos>=4.5.0",
+    "azure-search-documents>=11.4.0",
+    "azure-ai-projects>=1.0.0",
+    "azure-ai-inference>=1.0.0",
+    "botocore>=1.34.0",
+    "boto3>=1.34.0",
+    "openai>=1.12.0",
+    "langchain>=0.1.0",
+    "pandas>=2.2.0",
+    "pandasai>=2.0.0",
+    "pandasai_openai>=0.1.0",
+    "python-dotenv>=1.0.0",
+    "nest-asyncio>=1.6.0",
+    "requests>=2.31.0",
+    "markdown>=3.5.0",
+    "pymongo>=4.6.0",
+    "pyMupdf>=1.23.0",
+    "xhtml2pdf>=0.2.0",
+    "celery>=5.3.0",
+    "motor>=3.3.0",
+    "docx>=1.1.0",
+    "e2b>=0.1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "black",
-    "flake8",
-    "twine",
-    "build"
+    "pytest>=8.0.0",
+    "black>=24.0.0",
+    "flake8>=7.0.0",
+    "twine>=5.0.0",
+    "build>=1.0.0",
 ]
 
-[project.scripts]
-agentic-rag = "agentic_rag_chatbot_enterprise_ready.main:cli"
+[build-system]
+requires = ["flit_core>=3.9.0"]
+build-backend = "flit_core.buildapi"
 
-[tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["agentic_rag_chatbot_enterprise_ready*"]
+[tool.flit.module]
+name = "agentic_rag_chatbot_enterprise_ready"
