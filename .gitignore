@@ -6,7 +6,7 @@ venv
 *.png
 .env
 .env.*
-__pychache__
+__pycache__
 storage/
 data
 build

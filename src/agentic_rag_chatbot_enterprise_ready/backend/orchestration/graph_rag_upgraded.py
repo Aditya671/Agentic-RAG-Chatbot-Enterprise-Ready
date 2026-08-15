@@ -1,0 +1,350 @@
+from __future__ import annotations
+
+import logging
+import os
+from typing import Any, Iterable, List, Optional, Sequence
+
+from llama_index.core import Document, PropertyGraphIndex
+from llama_index.core.graph_stores import SimplePropertyGraphStore
+from llama_index.core.llms import LLM
+from llama_index.core.vector_stores.simple import SimpleVectorStore
+
+try:
+    from llama_index.graph_stores.nebula import NebulaPropertyGraphStore
+except ImportError:  # pragma: no cover - exercised in environments without the optional integration
+    NebulaPropertyGraphStore = None  # type: ignore[assignment]
+
+
+logger = logging.getLogger(__name__)
+
+
+class GraphRAGError(RuntimeError):
+    """Base exception for GraphRAG failures."""
+
+
+class GraphRAGConfigurationError(GraphRAGError):
+    """Raised when GraphRAG configuration is invalid."""
+
+
+class GraphRAGSystem:
+    """Property-graph RAG system with optional persistent NebulaGraph storage.
+
+    This replaces the deprecated LlamaIndex ``KnowledgeGraphIndex`` /
+    ``SimpleGraphStore`` architecture with ``PropertyGraphIndex`` and
+    ``NebulaPropertyGraphStore``.
+
+    A separate vector store is used because NebulaPropertyGraphStore does not
+    implement native vector queries in the current LlamaIndex integration.
+    ``SimpleVectorStore`` is the safe default for compatibility; production
+    deployments should inject a durable vector store when graph embeddings
+    need to survive process restarts.
+    """
+
+    def __init__(
+        self,
+        llm: LLM,
+        embed_model: Any,
+        *,
+        graph_store: Optional[Any] = None,
+        vector_store: Optional[Any] = None,
+        use_nebula: Optional[bool] = None,
+        nebula_space_name: Optional[str] = None,
+        nebula_url: Optional[str] = None,
+        nebula_port: Optional[int] = None,
+        nebula_username: Optional[str] = None,
+        nebula_password: Optional[str] = None,
+        show_progress: bool = False,
+        similarity_top_k: int = 5,
+        path_depth: int = 1,
+        include_text: bool = True,
+        embed_kg_nodes: bool = True,
+    ) -> None:
+        if llm is None:
+            raise GraphRAGConfigurationError("llm is required.")
+        if embed_model is None:
+            raise GraphRAGConfigurationError("embed_model is required.")
+        if not isinstance(similarity_top_k, int) or similarity_top_k < 1:
+            raise ValueError("similarity_top_k must be a positive integer.")
+        if not isinstance(path_depth, int) or path_depth < 0:
+            raise ValueError("path_depth must be a non-negative integer.")
+
+        self.llm = llm
+        self.embed_model = embed_model
+        self.show_progress = bool(show_progress)
+        self.similarity_top_k = similarity_top_k
+        self.path_depth = path_depth
+        self.include_text = bool(include_text)
+        self.embed_kg_nodes = bool(embed_kg_nodes)
+
+        self.graph_store = graph_store or self._build_graph_store(
+            use_nebula=use_nebula,
+            space_name=nebula_space_name,
+            url=nebula_url,
+            port=nebula_port,
+            username=nebula_username,
+            password=nebula_password,
+        )
+
+        # NebulaPropertyGraphStore currently does not implement vector_query.
+        # PropertyGraphIndex therefore needs a separate vector store for vector
+        # context retrieval. Keep this injectable for production persistence.
+        self.vector_store = vector_store or SimpleVectorStore()
+        self.index: Optional[PropertyGraphIndex] = None
+
+        logger.info(
+            "GraphRAGSystem initialized with graph_store=%s, vector_store=%s",
+            type(self.graph_store).__name__,
+            type(self.vector_store).__name__,
+        )
+
+    @staticmethod
+    def _build_graph_store(
+        *,
+        use_nebula: Optional[bool],
+        space_name: Optional[str],
+        url: Optional[str],
+        port: Optional[int],
+        username: Optional[str],
+        password: Optional[str],
+    ) -> Any:
+        configured_space = (
+            space_name
+            or os.getenv("NEBULA_SPACE_NAME")
+            or os.getenv("NEBULA_SPACE")
+        )
+
+        if use_nebula is None:
+            use_nebula = bool(configured_space)
+
+        if not use_nebula:
+            logger.info("Using SimplePropertyGraphStore for GraphRAG.")
+            return SimplePropertyGraphStore()
+
+        if NebulaPropertyGraphStore is None:
+            raise GraphRAGConfigurationError(
+                "Nebula GraphRAG was requested but "
+                "'llama-index-graph-stores-nebula' is not installed."
+            )
+
+        if not configured_space:
+            raise GraphRAGConfigurationError(
+                "NEBULA_SPACE_NAME/NEBULA_SPACE is required when NebulaGraph is enabled."
+            )
+
+        kwargs: dict[str, Any] = {
+            "space": configured_space,
+        }
+
+        if url or os.getenv("NEBULA_URL"):
+            kwargs["url"] = url or os.getenv("NEBULA_URL")
+
+        if port is not None or os.getenv("NEBULA_PORT"):
+            try:
+                kwargs["port"] = int(
+                    port if port is not None else os.getenv("NEBULA_PORT", "9669")
+                )
+            except ValueError as exc:
+                raise GraphRAGConfigurationError(
+                    "NEBULA_PORT must be an integer."
+                ) from exc
+
+        if username or os.getenv("NEBULA_USERNAME"):
+            kwargs["username"] = username or os.getenv("NEBULA_USERNAME")
+
+        if password or os.getenv("NEBULA_PASSWORD"):
+            kwargs["password"] = password or os.getenv("NEBULA_PASSWORD")
+
+        try:
+            store = NebulaPropertyGraphStore(**kwargs)
+            logger.info(
+                "Using persistent NebulaPropertyGraphStore for space '%s'.",
+                configured_space,
+            )
+            return store
+        except Exception as exc:
+            logger.exception("Failed to initialize NebulaPropertyGraphStore.")
+            raise GraphRAGConfigurationError(
+                "Failed to initialize the configured NebulaGraph store."
+            ) from exc
+
+    @staticmethod
+    def _validate_documents(documents: Sequence[Document]) -> List[Document]:
+        if not isinstance(documents, Sequence) or isinstance(
+            documents, (str, bytes, bytearray)
+        ):
+            raise TypeError("documents must be a sequence of LlamaIndex Document objects.")
+
+        validated: List[Document] = []
+        for document in documents:
+            if not isinstance(document, Document):
+                raise TypeError("All graph documents must be LlamaIndex Document objects.")
+            if not getattr(document, "text", "").strip():
+                logger.warning("Skipping empty graph document.")
+                continue
+            validated.append(document)
+
+        return validated
+
+    def build_graph_from_documents(
+        self,
+        documents: Sequence[Document],
+        *,
+        kg_extractors: Optional[Sequence[Any]] = None,
+        max_triplets_per_chunk: Optional[int] = None,
+    ) -> Optional[PropertyGraphIndex]:
+        """Build or extend the property graph from documents.
+
+        ``PropertyGraphIndex`` uses LlamaIndex's current property-graph
+        extraction pipeline. Additional documents can be inserted later via
+        ``insert_documents`` without rebuilding the entire graph.
+        """
+        validated = self._validate_documents(documents)
+        if not validated:
+            logger.warning("No non-empty documents supplied; graph build skipped.")
+            return self.index
+
+        kwargs: dict[str, Any] = {
+            "property_graph_store": self.graph_store,
+            "vector_store": self.vector_store,
+            "embed_model": self.embed_model,
+            "embed_kg_nodes": self.embed_kg_nodes,
+            "show_progress": self.show_progress,
+        }
+
+        if kg_extractors:
+            kwargs["kg_extractors"] = list(kg_extractors)
+
+        # PropertyGraphIndex does not expose the old KnowledgeGraphIndex
+        # max_triplets_per_chunk constructor option. Preserve the old intent
+        # only when a caller supplies an extractor configured for that policy.
+        if max_triplets_per_chunk is not None:
+            logger.warning(
+                "max_triplets_per_chunk=%s is ignored by PropertyGraphIndex; "
+                "configure triplet/path extraction through kg_extractors instead.",
+                max_triplets_per_chunk,
+            )
+
+        try:
+            if self.index is None:
+                self.index = PropertyGraphIndex.from_documents(
+                    validated,
+                    **kwargs,
+                )
+            else:
+                for document in validated:
+                    self.index.insert(document)
+
+            logger.info(
+                "Property graph built/updated successfully from %d documents.",
+                len(validated),
+            )
+            return self.index
+        except Exception as exc:
+            logger.exception("Failed to build/update property graph.")
+            raise GraphRAGError("Failed to build/update the knowledge graph.") from exc
+
+    def insert_documents(self, documents: Sequence[Document]) -> Optional[PropertyGraphIndex]:
+        """Insert additional documents into an existing property graph."""
+        validated = self._validate_documents(documents)
+        if not validated:
+            return self.index
+
+        if self.index is None:
+            return self.build_graph_from_documents(validated)
+
+        try:
+            for document in validated:
+                self.index.insert(document)
+            return self.index
+        except Exception as exc:
+            logger.exception("Failed to insert documents into property graph.")
+            raise GraphRAGError("Failed to insert documents into the knowledge graph.") from exc
+
+    def load_existing_graph(
+        self,
+        *,
+        graph_store: Optional[Any] = None,
+        vector_store: Optional[Any] = None,
+    ) -> PropertyGraphIndex:
+        """Attach the RAG layer to an already-populated property graph.
+
+        This is important for production: graph construction should normally
+        happen in an ingestion pipeline, not during application startup or
+        request handling.
+        """
+        if graph_store is not None:
+            self.graph_store = graph_store
+        if vector_store is not None:
+            self.vector_store = vector_store
+
+        try:
+            self.index = PropertyGraphIndex.from_existing(
+                property_graph_store=self.graph_store,
+                vector_store=self.vector_store,
+                embed_model=self.embed_model,
+                embed_kg_nodes=self.embed_kg_nodes,
+            )
+            logger.info("Loaded existing property graph successfully.")
+            return self.index
+        except Exception as exc:
+            logger.exception("Failed to load existing property graph.")
+            raise GraphRAGError("Failed to load the existing knowledge graph.") from exc
+
+    def as_retriever(self) -> Any:
+        """Return the default property-graph hybrid retriever."""
+        if self.index is None:
+            raise GraphRAGError(
+                "Graph index is not built. Build or load a graph before retrieving."
+            )
+
+        return self.index.as_retriever(
+            include_text=self.include_text,
+            similarity_top_k=self.similarity_top_k,
+            path_depth=self.path_depth,
+        )
+
+    def as_query_engine(self) -> Any:
+        """Return a query engine over the property graph."""
+        if self.index is None:
+            raise GraphRAGError(
+                "Graph index is not built. Build or load a graph before querying."
+            )
+
+        return self.index.as_query_engine(
+            include_text=self.include_text,
+            similarity_top_k=self.similarity_top_k,
+            path_depth=self.path_depth,
+        )
+
+    def query(self, query_text: str) -> str:
+        """Query the graph and normalize the result to the agent-tool contract."""
+        if not isinstance(query_text, str) or not query_text.strip():
+            raise ValueError("query_text must be a non-empty string.")
+
+        query_engine = self.as_query_engine()
+
+        try:
+            response = query_engine.query(query_text)
+            return str(response)
+        except Exception as exc:
+            logger.exception("GraphRAG query failed.")
+            raise GraphRAGError("Knowledge graph query failed.") from exc
+
+    def close(self) -> None:
+        """Release graph/vector resources when their integrations support it."""
+        for resource in (self.graph_store, self.vector_store):
+            close = getattr(resource, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    logger.exception(
+                        "Failed to close GraphRAG resource %s.",
+                        type(resource).__name__,
+                    )
+
+    def __enter__(self) -> "GraphRAGSystem":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
