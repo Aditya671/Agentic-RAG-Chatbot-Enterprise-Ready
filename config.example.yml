@@ -1,0 +1,54 @@
+# Copy this file to config.yml and replace every placeholder with your
+# environment-specific Azure resource configuration.
+#
+# Never commit config.yml, .env, credentials, API keys, or connection strings.
+# Secrets should normally be supplied through environment variables or Azure
+# Key Vault. Values below are deliberately non-functional placeholders.
+
+environment: local
+
+cloud:
+  provider: azure
+
+database:
+  provider: cosmos_db
+
+indexes:
+  aiim:
+    azure_ai_search:
+      index_name: "<AZURE_AI_SEARCH_INDEX>"
+      search_service_endpoint: "https://<AZURE_SEARCH_SERVICE>.search.windows.net"
+
+    storage_account:
+      account_name: "<AZURE_STORAGE_ACCOUNT>"
+      container_name: "<AZURE_BLOB_CONTAINER>"
+
+    key_vault:
+      url: "https://<AZURE_KEY_VAULT>.vault.azure.net"
+      openai_api_key_name: "<KEY_VAULT_OPENAI_API_KEY_SECRET>"
+      azure_openai_api_key_name: "<KEY_VAULT_AZURE_OPENAI_API_KEY_SECRET>"
+
+    embed:
+      model: "<AZURE_OPENAI_EMBEDDING_DEPLOYMENT>"
+      size: 1536
+
+    rag:
+      spliter: "sentence"
+      chunk_size: 1024
+      chunk_overlap: 100
+
+    llms:
+      aoai:
+        endpoint-east-us-2: "https://<AZURE_OPENAI_RESOURCE>.openai.azure.com"
+        api-version-east-us-2: "<AZURE_OPENAI_API_VERSION>"
+        deployment-name: "<AZURE_OPENAI_CHAT_DEPLOYMENT>"
+        embedding-deployment-name: "<AZURE_OPENAI_EMBEDDING_DEPLOYMENT>"
+
+    ai_service:
+      endpoint: "https://<AZURE_AI_PROJECT_ENDPOINT>"
+      agent_id: "<AZURE_AI_PROJECT_AGENT_ID>"
+
+# Optional top-level service configuration used by supporting integrations.
+ai_service:
+  endpoint: "https://<AZURE_AI_PROJECT_ENDPOINT>"
+  agent_id: "<AZURE_AI_PROJECT_AGENT_ID>"
