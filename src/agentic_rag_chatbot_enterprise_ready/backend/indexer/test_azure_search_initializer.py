@@ -1,6 +1,7 @@
 """Dependency-isolated contracts for the Azure AI Search initializer."""
 from __future__ import annotations
 
+import asyncio
 import importlib
 import sys
 import types
@@ -10,20 +11,26 @@ import pytest
 
 def _load_module(monkeypatch: pytest.MonkeyPatch):
     class FakeSearchClient:
+        instances: list["FakeSearchClient"] = []
+
         def __init__(self, endpoint, index_name, credential):
             self.endpoint = endpoint
             self.index_name = index_name
             self.credential = credential
             self.closed = False
+            self.instances.append(self)
 
         async def close(self):
             self.closed = True
 
     class FakeSearchIndexClient:
+        instances: list["FakeSearchIndexClient"] = []
+
         def __init__(self, endpoint, credential):
             self.endpoint = endpoint
             self.credential = credential
             self.closed = False
+            self.instances.append(self)
 
         def close(self):
             self.closed = True
@@ -52,23 +59,26 @@ def _load_module(monkeypatch: pytest.MonkeyPatch):
             return cls(storage_context)
 
     class FakeVectorStore:
+        instances: list["FakeVectorStore"] = []
+
         def __init__(self, **kwargs):
             self.kwargs = kwargs
+            self.instances.append(self)
 
     class IndexManagement:
-        VALIDATE_INDEX = "validate_index"
-        CREATE_IF_NOT_EXISTS = "create_if_not_exists"
+        VALIDATE_INDEX = None
+        CREATE_IF_NOT_EXISTS = None
 
         def __init__(self, value):
-            if value not in {
-                self.VALIDATE_INDEX,
-                self.CREATE_IF_NOT_EXISTS,
-            }:
+            if value not in {"validate_index", "create_if_not_exists"}:
                 raise ValueError(value)
             self.value = value
 
         def __eq__(self, other):
             return isinstance(other, IndexManagement) and self.value == other.value
+
+    IndexManagement.VALIDATE_INDEX = IndexManagement("validate_index")
+    IndexManagement.CREATE_IF_NOT_EXISTS = IndexManagement("create_if_not_exists")
 
     azure = types.ModuleType("azure")
     azure_search = types.ModuleType("azure.search")
@@ -85,7 +95,7 @@ def _load_module(monkeypatch: pytest.MonkeyPatch):
     documents.SearchClient = FakeSearchClient
     documents_aio.SearchClient = FakeSearchClient
     indexes.SearchIndexClient = FakeSearchIndexClient
-    indexes_aio.SearchIndexClient = FakeSearchIndexClient
+    indexes_aio.SearchIndexClient = FakeSearchClient
     core.Settings = FakeSettings
     core.StorageContext = FakeStorageContext
     core.VectorStoreIndex = FakeIndex
@@ -94,18 +104,28 @@ def _load_module(monkeypatch: pytest.MonkeyPatch):
     vector.AzureAISearchVectorStore = FakeVectorStore
     vector.IndexManagement = IndexManagement
 
-    monkeypatch.setitem(sys.modules, "azure", azure)
-    monkeypatch.setitem(sys.modules, "azure.search", azure_search)
-    monkeypatch.setitem(sys.modules, "azure.search.documents", documents)
-    monkeypatch.setitem(sys.modules, "azure.search.documents.aio", documents_aio)
-    monkeypatch.setitem(sys.modules, "azure.search.documents.indexes", indexes)
-    monkeypatch.setitem(sys.modules, "azure.search.documents.indexes.aio", indexes_aio)
-    monkeypatch.setitem(sys.modules, "llama_index", llama)
-    monkeypatch.setitem(sys.modules, "llama_index.core", core)
-    monkeypatch.setitem(sys.modules, "llama_index.vector_stores.azureaisearch", vector)
-    monkeypatch.setitem(sys.modules, "llama_index.embeddings.azure_openai", embeddings_azure)
-    monkeypatch.setitem(sys.modules, "llama_index.embeddings.openai", embeddings_openai)
+    modules = {
+        "azure": azure,
+        "azure.search": azure_search,
+        "azure.search.documents": documents,
+        "azure.search.documents.aio": documents_aio,
+        "azure.search.documents.indexes": indexes,
+        "azure.search.documents.indexes.aio": indexes_aio,
+        "llama_index": llama,
+        "llama_index.core": core,
+        "llama_index.vector_stores": types.ModuleType("llama_index.vector_stores"),
+        "llama_index.vector_stores.azureaisearch": vector,
+        "llama_index.embeddings": types.ModuleType("llama_index.embeddings"),
+        "llama_index.embeddings.azure_openai": embeddings_azure,
+        "llama_index.embeddings.openai": embeddings_openai,
+    }
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
 
+    sys.modules.pop(
+        "agentic_rag_chatbot_enterprise_ready.backend.indexer.azure_search_initializer_upgraded",
+        None,
+    )
     module = importlib.import_module(
         "agentic_rag_chatbot_enterprise_ready.backend.indexer.azure_search_initializer_upgraded"
     )
@@ -125,13 +145,24 @@ def _args(**overrides):
     return values
 
 
-def test_sync_initializer_uses_existing_index_validation(monkeypatch):
+def test_sync_initializer_uses_search_index_client(monkeypatch):
     module, _, search_index_client, vector_store, _, management = _load_module(monkeypatch)
     index = module.initialize_index(**_args())
 
-    assert index.storage_context.vector_store is not None
-    assert search_index_client.instances if hasattr(search_index_client, "instances") else True
-    assert vector_store.instances if hasattr(vector_store, "instances") else True
+    assert len(search_index_client.instances) == 1
+    assert len(vector_store.instances) == 1
+    assert vector_store.instances[0].kwargs["index_name"] == "test-index"
+    assert vector_store.instances[0].kwargs["index_management"] == management.VALIDATE_INDEX
+    assert index._azure_search_client is search_index_client.instances[0]
+
+
+def test_async_initializer_uses_async_search_client(monkeypatch):
+    module, search_client, _, vector_store, _, _ = _load_module(monkeypatch)
+    index = module.initialize_index(**_args(aio=True))
+
+    assert len(search_client.instances) == 1
+    assert vector_store.instances[0].kwargs["search_or_index_client"] is search_client.instances[0]
+    assert index._azure_search_aio is True
 
 
 def test_initializer_validates_inputs(monkeypatch):
@@ -148,12 +179,13 @@ def test_initializer_validates_inputs(monkeypatch):
 
 
 def test_string_index_management_is_supported(monkeypatch):
-    module, _, _, vector_store, _, _ = _load_module(monkeypatch)
+    module, _, _, vector_store, _, management = _load_module(monkeypatch)
     module.initialize_index(**_args(index_management="create_if_not_exists"))
-    assert vector_store.instances if hasattr(vector_store, "instances") else True
+    assert vector_store.instances[0].kwargs["index_management"] == management.CREATE_IF_NOT_EXISTS
 
 
-def test_lifecycle_close_handles_async_and_sync_clients(monkeypatch):
+@pytest.mark.asyncio
+async def test_close_index_handles_async_and_sync_clients(monkeypatch):
     module, *_ = _load_module(monkeypatch)
 
     class AsyncClient:
@@ -170,21 +202,18 @@ def test_lifecycle_close_handles_async_and_sync_clients(monkeypatch):
         def close(self):
             self.closed = True
 
-    import asyncio
-
-    async_client = AsyncClient()
-    sync_client = SyncClient()
-
     class Holder:
         pass
 
+    async_client = AsyncClient()
+    sync_client = SyncClient()
     async_index = Holder()
     async_index._azure_search_client = async_client
     sync_index = Holder()
     sync_index._azure_search_client = sync_client
 
-    asyncio.run(module.close_index(async_index))
-    asyncio.run(module.close_index(sync_index))
+    await module.close_index(async_index)
+    await module.close_index(sync_index)
 
     assert async_client.closed is True
     assert sync_client.closed is True
