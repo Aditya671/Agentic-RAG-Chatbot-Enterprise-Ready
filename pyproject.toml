@@ -52,14 +52,17 @@ dev = [
 agentic-rag = "agentic_rag_chatbot_enterprise_ready.cli:cli"
 
 [build-system]
-requires = ["flit_core>=3.11,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["setuptools>=78,<81"]
+build-backend = "setuptools.build_meta"
 
-[tool.flit.module]
-name = "agentic_rag_chatbot_enterprise_ready"
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "src/agentic_rag_chatbot_enterprise_ready"]
+pythonpath = ["src"]
 testpaths = ["tests", "src"]
 addopts = "-ra"
 
