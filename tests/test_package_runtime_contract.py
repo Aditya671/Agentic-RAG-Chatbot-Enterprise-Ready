@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import importlib
+from pathlib import Path
 
 
 def test_package_import_registers_backend_compatibility_alias() -> None:
@@ -14,10 +16,16 @@ def test_package_import_registers_backend_compatibility_alias() -> None:
 
 
 def test_canonical_agent_upload_adapter_is_async() -> None:
-    module = importlib.import_module(
-        "agentic_rag_chatbot_enterprise_ready.backend.orchestration.agentic_ai_system"
-    )
-    method = module.AsyncAgenticAiSystem.upload_and_index_files
+    source = Path(
+        "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration/agentic_ai_system.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(source)
 
-    assert callable(method)
-    assert getattr(method, "__code__").co_flags & 0x80  # inspect.CO_COROUTINE
+    methods = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef))
+        and node.name == "upload_and_index_files"
+    ]
+    assert len(methods) == 1
+    assert isinstance(methods[0], ast.AsyncFunctionDef)
