@@ -1,9 +1,8 @@
-"""Backward-compatible import surface for the modular backend package.
+"""Backend package.
 
-The original application imported modules from ``backend.*``.  Keeping that
-namespace stable lets the business logic evolve without forcing a flag-day
-rewrite of every integration and UI module.
+The backend intentionally keeps this module lightweight.  Individual services
+are imported from their concrete modules so importing ``backend.config`` or
+another submodule does not initialize the agent runtime or contact Azure.
 """
-from .orchestration.agentic_ai_system import AsyncAgenticAiSystem
 
-__all__ = ["AsyncAgenticAiSystem"]
+__all__: list[str] = []
