@@ -1,13 +1,8 @@
-"""Small, dependency-free contract for agent retrieval configuration.
-
-The agent currently uses Azure AI Search through LlamaIndex. This module keeps
-retrieval policy explicit and independently testable so provider-specific
-retrieval code does not become the source of truth for application behaviour.
-"""
+"""Dependency-light contract for agent retrieval configuration."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,10 +19,18 @@ class RetrievalConfig:
             raise ValueError("top_k must be >= 1")
         if not isinstance(self.query_mode, str) or not self.query_mode.strip():
             raise ValueError("query_mode must be a non-empty string")
+        if self.query_mode.strip().casefold() != "semantic_hybrid":
+            raise ValueError("query_mode must be 'semantic_hybrid'")
 
     def as_kwargs(self) -> dict[str, Any]:
-        """Return the provider-facing retrieval keyword arguments."""
+        """Return provider-facing retrieval kwargs without importing a provider SDK."""
         return {
             "similarity_top_k": self.top_k,
             "vector_store_query_mode": self.query_mode,
         }
+
+    def resolve_query_mode(self, resolver: Callable[[str], Any]) -> Any:
+        """Resolve the provider query-mode value at the integration boundary."""
+        if not callable(resolver):
+            raise TypeError("resolver must be callable")
+        return resolver(self.query_mode)
