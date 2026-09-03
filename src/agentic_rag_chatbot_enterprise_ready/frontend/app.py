@@ -1,24 +1,23 @@
-import sys
-import os
-import requests
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '...')))
-import asyncio
-from dotenv import load_dotenv
-from pathlib import Path
-current_dir = Path(__file__).resolve().parent
-dotenv_path = current_dir.parent.parent / ".env"
-load_dotenv(dotenv_path)
+from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
-import chainlit as cl
 import ast
+import asyncio
+import contextlib
+import os
 import tempfile
-from chainlit.input_widget import Select, Switch, Slider
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import httpx
+from dotenv import load_dotenv
+
+import chainlit as cl
+from chainlit.input_widget import Select, Slider, Switch
 from chainlit.types import Feedback
 from chainlit.user import User
-from azure.storage.blob import BlobServiceClient
 from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient
 
 from backend.UploadFileWrapper import UploadedFileWrapper
 from backend.utility import generate_blob_sas_url
@@ -31,572 +30,360 @@ from backend.agentic_ai_system import AsyncAgenticAiSystem
 from app_logger import setup_logger
 
 
-# Initialize
-logger, log_filename = setup_logger('chainlit_app_logger')
-model_enum = AIModelTypes
-models_list  = [model.value  for model in model_enum ]
+CURRENT_DIR = Path(__file__).resolve().parent
+load_dotenv(CURRENT_DIR.parent.parent / ".env")
 
-def load_blob_bytes():
-    salesforce_index_config = config.indexes.get('salesforce')
-    salesforce_credential_manager = AzureCredentialManager(key_vault_url=salesforce_index_config.key_vault.get("url"))
-    blob_service = BlobServiceClient.from_connection_string(\
-        salesforce_credential_manager.client.get_secret(salesforce_index_config.storage_account.get('connection_string')).value \
-    )
-    container_client = blob_service.get_container_client(salesforce_index_config.storage_account.get('container_name'))
-    azure_blob_agent = AzureBlobFileRetriever(container_client_service=container_client)
-    blob_stream = azure_blob_agent.get_latest_file_stream(prefix='your_file')
-    blob_bytes = bytes('', encoding='latin1')
-    if blob_stream is not None:
-        logger.info(f"""[AgenticAiSystem] Downloaded BlobStream: {blob_stream.name}, size={blob_stream.size}")""")
-        blob_bytes = blob_stream.to_bytes()
-    metadata = azure_blob_agent.get_blob("metadata.json")
-    return {'bytes':blob_bytes, 'metadata': metadata.to_str()}
-blob_bytes = load_blob_bytes()
+logger, log_filename = setup_logger("chainlit_app_logger")
+MODEL_ENUM = AIModelTypes
+DEFAULT_MODEL = AIModelTypes.GPT51
+DEFAULT_INDEX = "aiim"
+DEFAULT_SETTINGS = {
+    "select_index": DEFAULT_INDEX,
+    "select_ai_model": DEFAULT_MODEL.value,
+    "select_response_mode": "low",
+    "set_model_top_k": 20,
+    "set_creativity_level": 0.1,
+    "enable_coding_assistant": False,
+    "enable_reranker": True,
+    "enable_graph_rag": False,
+}
 
-def app_default_setting(
-    select_index = '',
-    select_ai_model = AIModelTypes.GPT51,
-    select_response_mode = 'low',
-    set_model_top_k = 20,
-    set_creativity_level = 0.1,
-    enable_coding_assistant=False,
-    enable_reranker=True,
-    enable_graph_rag=False
-):
-    user = cl.user_session.get('user')
-    indexes = []
-    all_tools = [
-        Select(
-            id="select_index", label="Select KnowledgeBase",
-            initial_value=select_index,
-            values=indexes,
-            description='Select the Knowledge Base'
-        ),
-        Select(
-            id="select_ai_model", label="Choose AI Model",
-            initial_value=select_ai_model,
-            items={model.name: model.value for model in model_enum},
-            description='Choose the AI model for reasoning'
-        ),
-        Select(
-            id="select_response_mode", label="Response Conciseness",
-            initial=select_response_mode,
-            initial_value=select_response_mode,
-            items={'Brief (short, to-the-point answers)': 'low', \
-                'Expanded (in-depth explanations)': 'high'},
-            description="""Adjust how concise gpt-5's responses should be. """
-            ),
-        Slider(
-            id="set_model_top_k", label="Adjust Top Search Results",
-            initial=set_model_top_k, min=0, max=30, step=1,
-            description="""Choose how many documents to include in your search. 
-            More documents give you broader information but may make the response a bit slower.
-            """
-        ),
-        Slider(
-            id="set_creativity_level", label="Tune Creativity Level",
-            initial=set_creativity_level, min=0.0, max=1.0, step=0.1,
-            description="""Adjusts how creative the AI's answers will be. 
-            Lower settings (closer to 0) provide more consistent, factual responses. 
-            Higher settings (closer to 1) allow more varied and creative answers, but may be less accurate.
-            """
-        ),
-        Switch(
-            type="switch",
-            id="enable_coding_assistant",
-            label="Enable Coding Assistant",
-            initial=enable_coding_assistant,
-            tooltip="Enable or disable the coding assistant",
-            description="Toggles the coding assistant's availability for help"
-        ),
-        Switch(
-            id="Enable Reranker",
-            label="Enable Neural Reranker",
-            value=enable_reranker, # Default value
-            description="Re-ranks search results for better relevance using an LLM.",
-        ),
-        Switch(
-            id="Enable GraphRAG",
-            label="Enable Graph RAG",
-            value=enable_graph_rag, # Default value
-            description="Enables querying relationships between entities (e.g., 'Who works with whom?').",
-        ),
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _available_indexes() -> list[str]:
+    indexes = getattr(config, "indexes", {}) or {}
+    return list(indexes.keys())
+
+
+def _normalize_settings(settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Normalize persisted/UI settings and tolerate settings from older versions."""
+    source = {**DEFAULT_SETTINGS, **(settings or {})}
+
+    indexes = _available_indexes()
+    if indexes and source["select_index"] not in indexes:
+        source["select_index"] = DEFAULT_INDEX if DEFAULT_INDEX in indexes else indexes[0]
+
+    valid_models = [model.value for model in MODEL_ENUM]
+    if source["select_ai_model"] not in valid_models:
+        source["select_ai_model"] = DEFAULT_MODEL.value
+
+    source["set_model_top_k"] = max(0, min(30, int(source["set_model_top_k"])))
+    source["set_creativity_level"] = max(0.0, min(1.0, float(source["set_creativity_level"]))
+    source["select_response_mode"] = "high" if source["select_response_mode"] == "high" else "low"
+
+    for key in ("enable_coding_assistant", "enable_reranker", "enable_graph_rag"):
+        source[key] = bool(source[key])
+    return source
+
+
+def app_default_setting(**overrides):
+    settings = _normalize_settings(overrides)
+    indexes = _available_indexes()
+    return [
+        Select(id="select_index", label="Select KnowledgeBase", initial_value=settings["select_index"], values=indexes, description="Select the Knowledge Base"),
+        Select(id="select_ai_model", label="Choose AI Model", initial_value=settings["select_ai_model"], items={model.name: model.value for model in MODEL_ENUM}, description="Choose the AI model for reasoning"),
+        Select(id="select_response_mode", label="Response Conciseness", initial_value=settings["select_response_mode"], items={"Brief (short, to-the-point answers)": "low", "Expanded (in-depth explanations)": "high"}, description="Adjust response conciseness."),
+        Slider(id="set_model_top_k", label="Adjust Top Search Results", initial=settings["set_model_top_k"], min=0, max=30, step=1, description="Choose how many documents to include in your search."),
+        Slider(id="set_creativity_level", label="Tune Creativity Level", initial=settings["set_creativity_level"], min=0.0, max=1.0, step=0.1, description="Lower values favor consistency; higher values allow more variation."),
+        Switch(id="enable_coding_assistant", label="Enable Coding Assistant", initial=settings["enable_coding_assistant"], tooltip="Enable or disable the coding assistant", description="Toggles coding-assistant availability."),
+        Switch(id="enable_reranker", label="Enable Neural Reranker", initial=settings["enable_reranker"], description="Re-ranks search results for better relevance."),
+        Switch(id="enable_graph_rag", label="Enable GraphRAG", initial=settings["enable_graph_rag"], description="Enables relationship-oriented retrieval."),
     ]
-    return all_tools
+
+
+def _get_index_config(index_name: str):
+    try:
+        return config.indexes[index_name]
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"Unknown knowledge-base index: {index_name!r}") from exc
+
+
+def _get_blob_storage_client(index_name: str):
+    index_config = _get_index_config(index_name)
+    storage = index_config.storage_account
+    credential_manager = AzureCredentialManager(key_vault_url=index_config.key_vault.get("url"))
+    account_name = storage.get("storage_account_name")
+    container_name = storage.get("container_name")
+    if account_name and container_name:
+        service = BlobServiceClient(account_url=f"https://{account_name}.blob.core.windows.net", credential=DefaultAzureCredential())
+        return service.get_container_client(container_name), credential_manager
+    secret_name = storage.get("connection_string")
+    if not secret_name:
+        raise ValueError(f"Storage configuration for index '{index_name}' is incomplete.")
+    connection_string = credential_manager.client.get_secret(secret_name).value
+    service = BlobServiceClient.from_connection_string(connection_string)
+    return service.get_container_client(container_name), credential_manager
+
+
+def load_blob_bytes(index_name: str = DEFAULT_INDEX) -> Dict[str, str | bytes]:
+    container_client, _ = _get_blob_storage_client(index_name)
+    retriever = AzureBlobFileRetriever(container_client_service=container_client)
+    blob_stream = retriever.get_latest_file_stream(prefix="your_file", extension=".csv")
+    blob_bytes = blob_stream.to_bytes() if blob_stream else b""
+    if blob_stream:
+        logger.info("[AgenticAiSystem] Downloaded blob name=%s size=%s", blob_stream.name, blob_stream.size)
+    metadata = retriever.get_blob("metadata.json")
+    return {"bytes": blob_bytes, "metadata": metadata.to_str()}
+
+
+async def _get_session_blob_context(index_name: str) -> Dict[str, str | bytes]:
+    cached = cl.user_session.get("blob_context")
+    if cached is not None and cl.user_session.get("blob_context_index") == index_name:
+        return cached
+    context = await asyncio.to_thread(load_blob_bytes, index_name)
+    cl.user_session.set("blob_context", context)
+    cl.user_session.set("blob_context_index", index_name)
+    return context
+
+
+async def _graph_groups(token: str) -> list[dict[str, str]]:
+    if not token:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get("https://graph.microsoft.com/v1.0/me/memberOf", headers={"Authorization": f"Bearer {token}"}, params={"$select": "displayName,mail,id"})
+            response.raise_for_status()
+            groups = response.json().get("value", [])
+    except httpx.HTTPError:
+        logger.exception("Microsoft Graph group lookup failed")
+        return []
+    return [{"displayName": group.get("displayName", ""), "id": group.get("id", "")} for group in groups if group.get("@odata.type") == "#microsoft.graph.group"]
+
 
 @cl.oauth_callback
-async def on_oauth_callback(\
-    provider_id: str, token: str, raw_user: Dict[str, str],\
-    default_user: User, id_token: Optional[str] = None) -> Optional[User]:
+async def on_oauth_callback(provider_id: str, token: str, raw_user: Dict[str, str], default_user: User, id_token: Optional[str] = None) -> Optional[User]:
     default_user.metadata["id_token"] = token
-    GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0/me"
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{GRAPH_API_ENDPOINT}/memberOf?$select=displayName,mail,id"
-    response = requests.get(url, headers=headers)
-    group_names = []
-    if response.status_code == 200:
-        groups = response.json().get("value", [])
-        group_names = [{'displayName': group["displayName"], 'id': group['id']} for group in groups if "@odata.type" in group and "group" in group["@odata.type"]]
     default_user.metadata["claims"] = raw_user
-    default_user.metadata["groups"] = group_names
     default_user.metadata["tenant"] = raw_user.get("tid")
+    default_user.metadata["groups"] = await _graph_groups(token)
     default_user.display_name = raw_user.get("displayName")
     return default_user
+
 
 @cl.set_starters
 async def set_starters():
     return [
-        cl.Starter(
-            label="Ask me questions about anything....",
-            message="Tell me about what you are capabilities are?",
-            icon="/public/favicon.png",
-        ),
-        cl.Starter(
-            label='What can you do?',
-            message='What can you help me with?',
-            icon="/public/favicon.png",
-        )
+        cl.Starter(label="Ask me questions about anything...", message="Tell me about your capabilities.", icon="/public/favicon.png"),
+        cl.Starter(label="What can you do?", message="What can you help me with?", icon="/public/favicon.png"),
     ]
+
 
 @cl.on_settings_update
 async def on_settings_change(settings):
-    logger.info(f"[AgenticAiSystem] App Settings Changed: {str(settings)}")
-    await cl.ChatSettings(\
-        app_default_setting(\
-            select_index=settings['select_index'] or '',\
-            select_ai_model=settings['select_ai_model'],\
-            select_response_mode=settings['select_response_mode'],\
-            set_creativity_level=settings['set_creativity_level'],\
-            set_model_top_k=settings['set_model_top_k'], \
-            enable_coding_assistant=settings['enable_coding_assistant'], \
-            enable_reranker=settings['enable_reranker'], \
-            enable_graph_rag=settings['enable_graph_rag'], 
-        )\
-    ).send()
-    return cl.user_session.set('settings', settings)
+    normalized = _normalize_settings(settings)
+    cl.user_session.set("settings", normalized)
+    agent = cl.user_session.get("agentic_engine")
+    if agent is not None:
+        _apply_agent_settings(agent, normalized)
+    return normalized
+
 
 @cl.data_layer
 def get_data_layer():
-    """
-    Establish CosmosDb-based data layer for persisting chat history.
-    """
-    select_index = 'aiim'
-    environment = os.getenv('ENVIRONMENT', 'local')
-    
-    credential_manager = AzureCredentialManager(key_vault_url=config.indexes[select_index].key_vault.get("url"))
-    if environment == 'local' or environment == Environment.DEVELOPMENT.value:
-        url = credential_manager.client.get_secret(\
-                config.indexes[select_index].dev_cosmos_db['uri']\
-            ).value
-        database_id = config.indexes[select_index].dev_cosmos_db['database_id']
-        container_id = config.indexes[select_index].dev_cosmos_db['container_id']
-    elif environment ==  Environment.UAT.value:
-        url = credential_manager.client.get_secret(\
-                config.indexes[select_index].uat_cosmos_db['uri']\
-            ).value
-        database_id = config.indexes[select_index].uat_cosmos_db['database_id']
-        container_id = config.indexes[select_index].uat_cosmos_db['container_id']
-    elif environment ==  Environment.PRODUCTION.value:
-        url = credential_manager.client.get_secret(\
-                config.indexes[select_index].prod_cosmos_db['uri']\
-            ).value
-        database_id = config.indexes[select_index].prod_cosmos_db['database_id']
-        container_id = config.indexes[select_index].prod_cosmos_db['container_id']
+    index_config = _get_index_config(DEFAULT_INDEX)
+    environment = os.getenv("ENVIRONMENT", "local")
+    credential_manager = AzureCredentialManager(key_vault_url=index_config.key_vault.get("url"))
+    environment_configs = {"local": index_config.dev_cosmos_db, Environment.DEVELOPMENT.value: index_config.dev_cosmos_db, Environment.UAT.value: index_config.uat_cosmos_db, Environment.PRODUCTION.value: index_config.prod_cosmos_db}
+    cosmos_config = environment_configs.get(environment, index_config.dev_cosmos_db)
+    url = credential_manager.client.get_secret(cosmos_config["uri"]).value
+    return CosmosDBDataLayer(credential=DefaultAzureCredential(), url=url, database_id=cosmos_config["database_id"], container_id=cosmos_config["container_id"])
+
+
+def _build_agent(settings: Dict[str, Any], chat_history: list, blob_context: dict):
+    settings = _normalize_settings(settings)
+    return AsyncAgenticAiSystem(selected_model=MODEL_ENUM(settings["select_ai_model"]) or DEFAULT_MODEL, similarity_top_k=settings["set_model_top_k"], reasoning_effect=settings["select_response_mode"], llm_creativity_level=settings["set_creativity_level"], index_name=settings["select_index"], session_id=cl.user_session.get("id"), upload_root_dir=tempfile.mkdtemp(prefix="llama_index_"), conversation_thread=chat_history, blob_bytes=blob_context["bytes"], enable_coding_assistant=settings["enable_coding_assistant"], enable_reranker=settings["enable_reranker"], enable_graph_rag=settings["enable_graph_rag"])
+
+
+def _apply_agent_settings(agent, settings: Dict[str, Any]) -> None:
+    settings = _normalize_settings(settings)
+    agent.set_selected_model(selected_model=settings["select_ai_model"])
+    agent.set_llm_creativity_level(llm_creativity_level=settings["set_creativity_level"])
+    agent.set_reasoning_effect(reasoning_effect=settings["select_response_mode"])
+    agent.set_similarity_top_k(similarity_top_k=settings["set_model_top_k"])
+    agent.set_index_name(index_name=settings["select_index"])
+    agent.set_coding_assistant(enable_coding_assistant=settings["enable_coding_assistant"])
+    agent.set_reranker(enable_reranker=settings["enable_reranker"])
+    agent.set_graph_rag(enable_graph_rag=settings["enable_graph_rag"])
+
+
+async def _ensure_user_groups(user: Optional[User]) -> None:
+    if user is None or "groups" in user.metadata:
+        return
+    user.metadata["groups"] = await _graph_groups(user.metadata.get("id_token", ""))
+    cl.user_session.set("user", user)
+
+
+async def _ensure_settings() -> Dict[str, Any]:
+    settings = cl.user_session.get("settings")
+    if settings is None:
+        settings = await cl.ChatSettings(app_default_setting()).send()
+    settings = _normalize_settings(settings)
+    cl.user_session.set("settings", settings)
+    return settings
+
+
+async def _ensure_agent(settings: Dict[str, Any]):
+    agent = cl.user_session.get("agentic_engine")
+    if agent is None:
+        blob_context = await _get_session_blob_context(settings["select_index"])
+        agent = _build_agent(settings, cl.user_session.get("chat_history") or [], blob_context)
+        cl.user_session.set("agentic_engine", agent)
     else:
-        url = credential_manager.client.get_secret(\
-                config.indexes[select_index].dev_cosmos_db['uri']\
-            ).value
-        database_id = config.indexes[select_index].dev_cosmos_db['database_id']
-        container_id = config.indexes[select_index].dev_cosmos_db['container_id']
-    logger.info(f"[AgenticAiSystem] Data Layer: CosmosDb(URL={url}, Container={container_id}, Database={database_id}, Environment={environment})")
-    return CosmosDBDataLayer(
-        credential=DefaultAzureCredential(),
-        url=url,
-        database_id=database_id,
-        container_id=container_id
-    )
+        _apply_agent_settings(agent, settings)
+        agent.set_conversation_thread(thread=cl.user_session.get("chat_history") or [])
+    return agent
+
 
 @cl.on_chat_start
 async def start():
     try:
-        cl.user_session.set('chat_history', [])
-        user = cl.user_session.get('user')
-        if 'groups' not in user.metadata and user is not None:
-            GRAPH_API_ENDPOINT = "https://graph.microsoft.com/v1.0/me"
-            headers = {"Authorization": f"Bearer {user.metadata['id_token']}"}
-            url = f"{GRAPH_API_ENDPOINT}/memberOf?$select=displayName,mail,id"
-            response = requests.get(url, headers=headers)
-
-            if response.status_code == 200:
-                groups = response.json().get("value", [])
-                group_names = [{'displayName': group["displayName"], 'id': group['id']} for group in groups if "@odata.type" in group and "group" in group["@odata.type"]]
-                user.metadata['groups'] = group_names
-                cl.user_session.set('user', user)
-        settings = cl.user_session.get('settings')
-        if settings is None:
-            settings = await cl.ChatSettings(app_default_setting()).send()
-            cl.user_session.set('settings', settings)
-        temp_upload_dir = tempfile.mkdtemp(prefix="llama_index_")
-        agent = AsyncAgenticAiSystem(\
-                selected_model = model_enum(settings['select_ai_model']) or AIModelTypes.GPT51,\
-                similarity_top_k=settings['set_model_top_k'],\
-                reasoning_effect=settings['select_response_mode'],\
-                llm_creativity_level=settings['set_creativity_level'],\
-                index_name=settings['select_index'],\
-                session_id=cl.user_session.get('id'),\
-                upload_root_dir=temp_upload_dir,\
-                # upload_root_dir=f'user_uploads\\{user.identifier}',\
-                conversation_thread = [], \
-                blob_bytes = blob_bytes,\
-                enable_coding_assistant=settings['enable_coding_assistant'], \
-                enable_reranker=settings['enable_reranker'], \
-                enable_graph_rag=settings['enable_graph_rag'], \
-            )
-        logger.info(f"[AgenticAiSystem] LoggedIn user {user.identifier or 'local_user'}, \n"
-            f"Initiating new Thread: {cl.user_session.get('id')} \n"
-            f"ON DateTime {datetime.now().isoformat()} \n"
-            f"With Thread Settings {str(settings)} \n"
-            f"Temp Root Directory on ({temp_upload_dir}) \n"
-        )
-        cl.user_session.set('agentic_engine', agent)
+        cl.user_session.set("chat_history", [])
+        await _ensure_user_groups(cl.user_session.get("user"))
+        settings = await _ensure_settings()
+        await _ensure_agent(settings)
         return True
-    except Exception as e:
-        logger.exception(e)
+    except Exception:
+        logger.exception("Chat initialization failed")
+        await cl.Message(content="Unable to initialize this chat session. Please try again.").send()
+        return False
+
+
+def _restore_settings_from_thread(thread: Dict[str, Any]) -> Dict[str, Any]:
+    return _normalize_settings(thread.get("settings") or cl.user_session.get("settings"))
 
 
 @cl.on_chat_resume
 async def on_chat_resume(thread):
-    app_chat_settings = cl.user_session.get('settings')
-    user = cl.user_session.get('user')
-    if 'settings' in thread:
-        user_settings = thread['settings']
-        settings = await cl.ChatSettings(
-            app_default_setting(\
-                select_index=user_settings['select_index'] or '',\
-                select_ai_model=user_settings['select_ai_model'],\
-                select_response_mode=user_settings['select_response_mode'],\
-                set_creativity_level=user_settings['set_creativity_level'],\
-                set_model_top_k=user_settings['set_model_top_k'], \
-                enable_coding_assistant=user_settings['enable_coding_assistant'],
-                enable_reranker=user_settings['enable_reranker'], \
-                enable_graph_rag=user_settings['enable_graph_rag']
-            )
-            ).send()        
-    elif app_chat_settings is None:
-        settings = await cl.ChatSettings(app_default_setting()).send()
-    else:
-        settings = await cl.ChatSettings(\
-            app_default_setting(\
-                select_index=app_chat_settings['select_index']  or '',\
-                select_ai_model=app_chat_settings['select_ai_model'],\
-                select_response_mode=app_chat_settings['select_response_mode'],\
-                set_creativity_level=app_chat_settings['set_creativity_level'],\
-                set_model_top_k=app_chat_settings['set_model_top_k'], \
-                enable_coding_assistant=app_chat_settings['enable_coding_assistant'],
-                enable_reranker=app_chat_settings['enable_reranker'], \
-                enable_graph_rag=app_chat_settings['enable_graph_rag'], \
-            )
-            ).send()
+    settings = _restore_settings_from_thread(thread)
+    settings = await cl.ChatSettings(app_default_setting(**settings)).send()
+    settings = _normalize_settings(settings)
+    cl.user_session.set("settings", settings)
+    await _ensure_user_groups(cl.user_session.get("user"))
+    await _ensure_agent(settings)
 
-    cl.user_session.set('settings', settings)
-    credential_manager = AzureCredentialManager(key_vault_url=config.indexes[settings['select_index']].key_vault.get("url"))
-    
-    if 'elements' in thread:
-        for element in thread['elements']:
-            if ('url' in element and element['url'] is not None) and element['type'] == 'pdf':
-                element['url'] = generate_blob_sas_url( \
-                        account_name=config.indexes[settings['select_index']].storage_account["storage_account_name"], \
-                        account_key=credential_manager.client.get_secret(\
-                            config.indexes[settings['select_index']].storage_account['account_key']\
-                        ).value, \
-                        container_name=config.indexes[settings['select_index']].storage_account["container_name"], \
-                        blob_name=element["name"], \
-                    )
-            if ('url' in element and element['url'] is None) and element['type'] == 'pdf':
-                    element['path'] = str(element['name'])
-    
-    if cl.user_session.get('agentic_engine') is None:
-        agent = AsyncAgenticAiSystem(\
-                selected_model = model_enum(settings['select_ai_model']) or AIModelTypes.GPT51,\
-                similarity_top_k=settings['set_model_top_k'],\
-                llm_creativity_level=settings['set_creativity_level'],\
-                reasoning_effect=settings['select_response_mode'],\
-                index_name=settings['select_index'],\
-                session_id=cl.user_session.get('id'),\
-                upload_root_dir=tempfile.mkdtemp(prefix="llama_index_") ,
-                conversation_thread=cl.user_session.get('chat_history'), \
-                blob_bytes = blob_bytes, \
-                enable_coding_assistant=settings['enable_coding_assistant'], \
-                enable_reranker=settings['enable_reranker'], \
-                enable_graph_rag=settings['enable_graph_rag'], \
-    
-            )
-        cl.user_session.set('agentic_engine', agent)
-    else:
-        agentic_engine = cl.user_session.get('agentic_engine')
-        agentic_engine.set_conversation_thread(thread=cl.user_session.get('chat_history'))
-        agentic_engine.set_selected_model(selected_model=app_chat_settings['select_ai_model'])
-        agentic_engine.set_llm_creativity_level(llm_creativity_level=app_chat_settings['set_creativity_level'])
-        agentic_engine.set_reasoning_effect(reasoning_effect=app_chat_settings['select_response_mode'])
-        agentic_engine.set_similarity_top_k(similarity_top_k=app_chat_settings['set_model_top_k'])
-        agentic_engine.set_index_name(index_name=app_chat_settings['select_index'])
-        agentic_engine.set_coding_assistant(enable_coding_assistant=app_chat_settings['enable_coding_assistant'])
-        agentic_engine.set_reranker(enable_reranker=app_chat_settings['enable_reranker'])
-        agentic_engine.set_graph_rag(enable_graph_rag=app_chat_settings['enable_graph_rag'])
-                
 
 @cl.on_feedback
 async def on_feedback(feedback: Feedback):
-    chat_history = cl.user_session.get('chat_history')
-    if chat_history is None:
-        cl.user_session.set('chat_history', [])
-        chat_history = []
+    chat_history = cl.user_session.get("chat_history") or []
     for step in chat_history:
         if step.get("stepId") == feedback.forId:
             step["feedbackScore"] = feedback.value
-            step["feedbackComment"] = feedback.comment
-    return cl.user_session.set('chat_history', chat_history)
+            step["feedbackComment"] = feedback.comment or ""
+    cl.user_session.set("chat_history", chat_history)
+
+
+def _append_history(chat_history: list, *, step_id: str, parent_id: Optional[str], role: str, content: str) -> None:
+    chat_history.append({"stepId": step_id, "parentId": parent_id, "role": role, "content": content, "createdAt": _utc_now_iso(), "feedbackScore": None, "feedbackComment": ""})
+
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    chat_history = cl.user_session.get("chat_history") or []
+    cl.user_session.set("chat_history", chat_history)
     try:
-        chat_history = cl.user_session.get('chat_history')
-        if chat_history is None:
-            cl.user_session.set('chat_history', [])
-        is_existing_message = message.id
-        if is_existing_message in [c['stepId'] for c in chat_history]:
-            reference_msg = next(
-                (m for m in chat_history if m["stepId"] == is_existing_message),
-                None
-            )
-            reference_time = datetime.fromisoformat(reference_msg["createdAt"])
-            # Filter messages created after reference
-            chat_history[:] = [
-                m for m in chat_history
-                if datetime.fromisoformat(m["createdAt"]) < reference_time
-            ]
-            chat_history[:] = [ m for m in chat_history if m["stepId"] != is_existing_message ]
-            cl.user_session.set('chat_history', chat_history)
-
-        settings = cl.user_session.get('settings')
-        if settings is None:
-            settings = await cl.ChatSettings(app_default_setting()).send()
-        else:
-            settings = await cl.ChatSettings(\
-                    app_default_setting(\
-                        select_index=settings['select_index'] or '',\
-                        select_ai_model=settings['select_ai_model'],\
-                        select_response_mode=settings['select_response_mode'],\
-                        set_creativity_level=settings['set_creativity_level'],\
-                        set_model_top_k=settings['set_model_top_k'], \
-                        enable_coding_assistant=settings['enable_coding_assistant']
-                    )\
-                ).send()
-        cl.user_session.set('settings', settings)
-        credential_manager = AzureCredentialManager(key_vault_url=config.indexes[settings['select_index']].key_vault.get("url"))
-        user = cl.user_session.get('user')        
-        agentic_engine = cl.user_session.get('agentic_engine')
-        if cl.user_session.get('agentic_engine') is None:
-            agentic_engine = AsyncAgenticAiSystem(\
-                selected_model = model_enum(settings['select_ai_model']) or AIModelTypes.GPT51,\
-                similarity_top_k=settings['set_model_top_k'],\
-                reasoning_effect=settings['select_response_mode'],\
-                llm_creativity_level=settings['set_creativity_level'],\
-                index_name=settings['select_index'],\
-                session_id=cl.user_session.get('id'),\
-                upload_root_dir=tempfile.mkdtemp(prefix="llama_index_"),\
-                # upload_root_dir=f'user_uploads\\{user.identifier}',\
-                conversation_thread=chat_history, \
-                blob_bytes = blob_bytes, \
-                enable_coding_assistant=settings['enable_coding_assistant'], \
-                enable_reranker=settings.get("enable_reranker"), \
-                enable_graph_rag=settings.get("enable_graph_rag"), \
-            )
-            cl.user_session.set('agentic_engine', agentic_engine)
-        else:
-            agentic_engine.set_conversation_thread(thread=chat_history)
-            agentic_engine.set_reasoning_effect(reasoning_effect=settings['select_response_mode'])
-            agentic_engine.set_selected_model(selected_model=settings['select_ai_model'])
-            agentic_engine.set_llm_creativity_level(llm_creativity_level=settings['set_creativity_level'])
-            agentic_engine.set_similarity_top_k(similarity_top_k=settings['set_model_top_k'])
-            agentic_engine.set_index_name(index_name=settings['select_index'])
-            agentic_engine.set_coding_assistant(enable_coding_assistant=settings['enable_coding_assistant'])
-            agentic_engine.set_reranker(enable_reranker=settings['enable_reranker'])
-            agentic_engine.set_graph_rag(enable_graph_rag=settings['enable_graph_rag'])
-
-        final_answer = cl.Message(content='')
-        # await final_answer.stream_token('Processing the Query...')
+        settings = await _ensure_settings()
+        agentic_engine = await _ensure_agent(settings)
+        user_prompt = (message.content or "").strip()
+        if not user_prompt:
+            await cl.Message(content="⚠️ Prompt is empty. Please type something.").send()
+            return
+        _append_history(chat_history, step_id=message.id, parent_id=message.parent_id, role="user", content=user_prompt)
+        processing_message = cl.Message(content="Processing the Query.")
+        await processing_message.send()
         async def animate_status():
             dots = "."
             while True:
-                final_answer.content = f"Processing the Query{dots}"
-                await final_answer.update()
-                await asyncio.sleep(0.35)  # animation speed
-                dots = "." if len(dots) == 8 else dots + "."
-
+                processing_message.content = f"Processing the Query{dots}"
+                await processing_message.update()
+                await asyncio.sleep(0.35)
+                dots = "." if len(dots) >= 8 else dots + "."
         animation_task = asyncio.create_task(animate_status())
-        
-        ui_response = await final_answer.send()
         try:
-            user_prompt = message.content.strip()
-            chat_history.append({'stepId': message.id,
-                                 'parentId': message.parent_id,
-                                 'role':'user', 'content': user_prompt,
-                                 'createdAt': final_answer.created_at or datetime.now().replace(tzinfo=timezone.utc),
-                                 'feedbackScore':None,
-                                 'feedbackComment':''
-                                 })
-            if not user_prompt:
-                animation_task.cancel()
-                # try:
-                #     await animation_task
-                # except asyncio.CancelledError:
-                #     pass
-                await cl.Message(content="⚠️ Prompt is empty. Please type something.").send()
-                return
-            uploaded_files_summary = {}
-            uploaded_files = message.elements
-            if isinstance(uploaded_files, list) and len(uploaded_files) > 0:
-                try:
-                    file_wrappers = [UploadedFileWrapper(f.path, f.name) for f in uploaded_files]
-                    file_content = f'The user has uploaded the following files {", ".join([f.name for f in uploaded_files])}, assist them in their queries if related to the uploaded files'
-                    uploaded_files_summary = await agentic_engine.upload_and_index_files(file_wrappers)
-                    for user_file in uploaded_files:
-                        user_file_element = await cl.Message(content="Files uploaded and indexed successfully!").send()
-                        file_summary = uploaded_files_summary.get(user_file.name, "No summary")
-                        await cl.Text(\
-                            name=user_file.name,\
-                            content=file_summary,\
-                        ).send(for_id=user_file_element.id)
-                    chat_history.append({'role':'system', 'content': file_content})
-                except Exception as e:
-                    await cl.Message(content=f"Error uploading files: {str(e)}").send()
-                    chat_history.append({
-                        'stepId': ui_response.id,
-                        'parentId': message.id,
-                        'role':'assistant', 'content': f"Error uploading files: {str(e)}",
-                        'createdAt': ui_response.created_at or datetime.now().replace(tzinfo=timezone.utc),
-                        'feedbackScore':None,
-                        'feedbackComment':''
-                        })
-                    return cl.user_session.set('chat_history', chat_history)
-            
-            ans = await agentic_engine.run_agent_async(user_prompt)
-            # Stop animation before streaming the real answer
+            uploaded_files = message.elements or []
+            if uploaded_files:
+                file_wrappers = [UploadedFileWrapper(file.path, file.name) for file in uploaded_files]
+                summaries = await agentic_engine.upload_and_index_files(file_wrappers)
+                for user_file in uploaded_files:
+                    confirmation = await cl.Message(content="File uploaded and indexed successfully.").send()
+                    await cl.Text(name=user_file.name, content=summaries.get(user_file.name, "No summary")).send(for_id=confirmation.id)
+            result = await agentic_engine.run_agent_async(user_prompt)
+            await stream_answer_and_citations(processing_message, result.response.content, settings)
+            _append_history(chat_history, step_id=processing_message.id, parent_id=message.id, role="assistant", content=result.response.content)
+            cl.user_session.set("chat_history", chat_history)
+        except Exception:
+            logger.exception("Message processing failed")
+            await cl.Message(content="❌ The request could not be completed. Please try again.").send()
+        finally:
             animation_task.cancel()
-            # try:
-            #     await animation_task
-            # except asyncio.CancelledError:
-            #     pass
-            await stream_answer_and_citations(ui_response, ans.response.content, credential_manager, settings)
-            chat_history.append({
-                'stepId': ui_response.id,
-                'parentId': message.id,
-                'role':'assistant', 'content': ans.response.content,
-                'createdAt': ui_response.created_at or datetime.now().replace(tzinfo=timezone.utc),
-                'feedbackScore':None,
-                'feedbackComment':''
-                })
-            if len(chat_history) == 2:
-                await get_data_layer().update_thread(thread_id=message.thread_id, name=agentic_engine.generate_thread_title())
-            logger.info(f"[AgenticAiSystem] LoggedIn user {user.identifier or 'local_user'}, \n"
-                f"Resuming Thread: {message.thread_id} \n"
-                f"ON DateTime {datetime.now().isoformat()} \n"
-                f"With Thread Settings {str(settings)} \n"
-            )
-            return cl.user_session.set('chat_history', chat_history)
+            with contextlib.suppress(asyncio.CancelledError):
+                await animation_task
+    except Exception:
+        logger.exception("Unhandled message-processing error")
+        await cl.Message(content="InternalServerError: the request could not be processed.").send()
 
-        except Exception as e:
-            await cl.Message(content=f"❌ Error: {str(e)}").send()
-            chat_history.append({
-                'stepId': ui_response.parent_id,
-                'parentId': message.id,
-                'role':'assistant', 'content': f"❌ Error: {str(e)}",
-                'createdAt': ui_response.created_at or datetime.now().replace(tzinfo=timezone.utc),
-                'feedbackScore':None,
-                'feedbackComment':''
-                })
-            return cl.user_session.set('chat_history', chat_history)
-    except Exception as e:
-        logger.exception(e)
-        await cl.Message(content=f"InternalServerError: {str(e)}").send()
-        chat_history.append({
-                'stepId': ui_response.parent_id,
-                'parentId': message.id,
-                'role':'assistant', 'content': f"InternalServerError: {str(e)}",
-                'createdAt': ui_response.created_at or datetime.now().replace(tzinfo=timezone.utc),
-                'feedbackScore':None,
-                'feedbackComment':''
-                })
-        return cl.user_session.set('chat_history', chat_history)
 
-async def stream_answer_and_citations(\
-    target_msg_element: cl.Message,\
-    response_content: str,\
-    credential_manager: AzureCredentialManager,\
-    thread_settings: Dict[str, Any]\
-):
-    # Set Content to "" from "Processing the Query..." content, displayed on UI - Code Start
+def _extract_citation_list(response_content: str) -> list[dict[str, Any]]:
+    marker = "Citations:"
+    index = response_content.find(marker)
+    if index == -1:
+        return []
+    remainder = response_content[index + len(marker):].lstrip()
+    start = remainder.find("[")
+    if start == -1:
+        return []
+    depth = 0
+    quote = None
+    escaped = False
+    for position in range(start, len(remainder)):
+        char = remainder[position]
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+        if char in ("'", '"'):
+            quote = char
+        elif char == "[":
+            depth += 1
+        elif char == "]":
+            depth -= 1
+            if depth == 0:
+                try:
+                    value = ast.literal_eval(remainder[start:position + 1])
+                except (SyntaxError, ValueError):
+                    return []
+                return value if isinstance(value, list) else []
+    return []
+
+
+async def stream_answer_and_citations(target_msg_element: cl.Message, response_content: str, thread_settings: Dict[str, Any]):
     target_msg_element.content = ""
     await target_msg_element.update()
-    # Set Content to "" from "Processing the Query..." content, displayed on UI - Code End
-    # Check if Citations are avaialable in Text Content - Code Start
-    CITATION_KEY = "Citations:"
-    citation_index = response_content.find(CITATION_KEY)
-    if citation_index != -1:
-        ui_main_response_content = response_content[:citation_index].strip()
-        for stream_ui_content_as_token in ui_main_response_content.split(" "):
-            await target_msg_element.stream_token(stream_ui_content_as_token + " ")
-        await target_msg_element.update()
-        # IF Citations are available Prepare Source List for Elements Display - Code Start
-        source_list = []
-        try:
-            start_index = response_content.index(CITATION_KEY) + len(CITATION_KEY)
-            remaining_text = response_content[start_index:].strip()
-            citation_list_str = remaining_text[:remaining_text.index(']') + 1]
-            source_list = ast.literal_eval(citation_list_str)
-        except (ValueError, SyntaxError):
-            source_list = []
-
-        # IF source_list is not empty, Prepare Elements for Rendering - Code Start
-        elements_markdown_html_for_UI = []
-        if source_list:
-            for list_index, source in enumerate(source_list):
-                if 'mimetype' in source and source['mimetype'] == 'pdf':
-                    url = generate_blob_sas_url(  
-                        account_name=config.indexes[thread_settings['select_index']].storage_account["storage_account_name"],  
-                        account_key=credential_manager.client.get_secret(\
-                            config.indexes[thread_settings['select_index']].storage_account['account_key']\
-                        ).value,  
-                        container_name=config.indexes[thread_settings['select_index']].storage_account["container_name"],  
-                        blob_name=source["source_node"],  
-                    )
-                    await cl.Pdf(
-                            name=source["source_node"],
-                            size="small",
-                            url=url if 'user_uploads' not in source['source_node'] else None,
-                            path=source['source_node'] if 'user_uploads' in source['source_node'] else None,
-                            display="side",
-                            page=int(source["page_number"])
-                        ).send(for_id=target_msg_element.id)
-                    file_name = str(source["title"])
-                    file_name = file_name.split("/")[-1].lower().replace('.pdf', '').title()
-                    elements_markdown_html_for_UI.append(\
-                        f"""&emsp;**Reference [{list_index + 1}]**:&NewLine;"""\
-                        f"&emsp;&emsp;**Source**: {file_name} (**PageNumber**: {source['page_number']})&NewLine;" \
-                        f"&emsp;&emsp;**SourcePath**: {source['source_node']} &NewLine;" \
-                    )
-                elif 'mimetype' in source and source['mimetype'] == 'url':
-                    elements_markdown_html_for_UI.append(f"""&emsp;**Reference [{list_index + 1}]**:&NewLine;"""\
-                                f"""&emsp;&emsp;**Source**: [{source['title']}]({source['source_node']})&NewLine;""")
-
-            if len(elements_markdown_html_for_UI) > 0:
-                elements_as_ui_content = " &NewLine;&NewLine; **Citations (References)**:&NewLine;" + "".join(elements_markdown_html_for_UI)
-                for stream_ui_content_as_token in elements_as_ui_content.split():
-                    await target_msg_element.stream_token(stream_ui_content_as_token + " ")
-            await target_msg_element.update()
-    else:
-        for stream_ui_content_as_token in response_content.split(" "):
-            await target_msg_element.stream_token(stream_ui_content_as_token + " ")
-        await target_msg_element.update()
-    # Set Content to "" from "Processing the Query..." content, displayed on UI - Code End
+    marker = "Citations:"
+    citation_index = response_content.find(marker)
+    main_content = response_content[:citation_index].strip() if citation_index >= 0 else response_content
+    for token in main_content.split():
+        await target_msg_element.stream_token(token + " ")
+    source_list = _extract_citation_list(response_content)
+    rendered_references = []
+    for list_index, source in enumerate(source_list):
+        if not isinstance(source, dict):
+            continue
+        mimetype = source.get("mimetype")
+        source_node = source.get("source_node")
+        if not source_node:
+            continue
+        if mimetype == "url":
+            title = source.get("title") or source_node
+            rendered_references.append(f"&emsp;**Reference [{list_index + 1}]**:&NewLine;&emsp;&emsp;**Source**: [{title}]({source_node})&NewLine;")
+    if rendered_references:
+        citation_text = "&NewLine;&NewLine; **Citations (References)**:&NewLine;" + "".join(rendered_references)
+        for token in citation_text.split():
+            await target_msg_element.stream_token(token + " ")
+    await target_msg_element.update()
