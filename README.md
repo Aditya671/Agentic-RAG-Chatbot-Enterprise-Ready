@@ -1,165 +1,151 @@
 # Agentic-RAG-Chatbot-Enterprise-Ready
 
-An Enterprise ready multi-agent AI assistant featuring hybrid search, automated CSV data analysis, and persistent conversation memory using Azure Cosmos DB.
+An enterprise-ready multi-agent AI assistant featuring hybrid search, automated CSV data analysis, persistent conversation memory using Azure Cosmos DB, user-upload indexing, internet grounding, and optional coding/GraphRAG capabilities.
 
 ---
 
-## Key Technical Features:
+## Core capabilities
 
-- Multi-Index Orchestration: Dynamically switches between Vector indexes for unstructured PDFs and a PandasQueryEngine for structured CSV data (like Salesforce meeting records).
--  Persistent Memory Layer: Custom integration with Azure Cosmos DB for high-availability storage of chat history and user feedback.
-- Smart Ingestion Pipeline: Features a UserUploadedFileIndexer that handles local file uploads, computes hashes to avoid redundant indexing, and generates automatic document summaries.
-- Agentic Tools: Integrated tools for Bing Web Search (Internet grounding) and a specialized Coding Assistant mode.
+- **Hybrid enterprise retrieval:** Azure AI Search backed retrieval for unstructured enterprise documents.
+- **Structured analysis:** CSV questions can be routed to a Pandas-based query engine for tabular reasoning and calculations.
+- **Persistent memory:** Conversation state is designed around Azure Cosmos DB so sessions are not tied to a single application process.
+- **User file ingestion:** Uploaded files are staged safely, deduplicated by the indexing layer, and processed asynchronously through the existing task workflow.
+- **Agentic tools:** Internet grounding, document retrieval, structured analysis, and optional coding/GraphRAG capabilities are exposed as tools to the agent.
+- **Enterprise identity:** Azure managed identity / developer credentials and Azure Key Vault are supported for service authentication and secret retrieval.
 
----
-  
-## Tech Stack:
-
-- Orchestration: LlamaIndex, Chainlit.
-- LLMs: Azure OpenAI (GPT-4o, GPT-5.1).
-- Database: Azure Cosmos DB, Azure AI Search (Vector Store).
-- Infrastructure: Azure Blob Storage, Azure Key Vault.
-
----
-<!--
 ## Architecture
-1. The Model Gateway (Abstraction Layer)
-Instead of hardcoding Azure OpenAI calls, the system uses a Gateway Pattern.
 
-How it scales: You can add a new model (e.g., Anthropic or a fine-tuned Mistral) by simply updating a config file.
+```text
+                         ┌─────────────────────┐
+                         │       Chainlit      │
+                         │        UI           │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │ Agentic RAG Runtime │
+                         │  routing + memory   │
+                         └──────────┬──────────┘
+                                    │
+             ┌──────────────────────┼──────────────────────┐
+             ▼                      ▼                      ▼
+      ┌─────────────┐        ┌─────────────┐        ┌─────────────┐
+      │ Azure AI    │        │ CSV /       │        │ Internet /  │
+      │ Search RAG  │        │ Pandas      │        │ external    │
+      └─────────────┘        └─────────────┘        └─────────────┘
+             │                      │                      │
+             └──────────────────────┼──────────────────────┘
+                                    ▼
+                         ┌─────────────────────┐
+                         │ Grounded response + │
+                         │ source metadata     │
+                         └──────────┬──────────┘
+                                    ▼
+                         ┌─────────────────────┐
+                         │ Azure Cosmos DB     │
+                         │ conversation state │
+                         └─────────────────────┘
+```
 
-Benefit: Protects the application from API downtime or price hikes by allowing instant model switching.
+## Technology baseline
 
-2. The Dynamic Tool Registry
-The "Agentic Tools" are no longer hard-wired into the agent.
+| Layer | Technology |
+|---|---|
+| Interface | Chainlit 2.12.x |
+| Agent orchestration | LlamaIndex 0.14.x |
+| LLM | Azure OpenAI |
+| Embeddings | Azure OpenAI embeddings |
+| Vector / hybrid retrieval | Azure AI Search |
+| Persistent memory | Azure Cosmos DB |
+| File storage | Azure Blob Storage |
+| Secrets / identity | Azure Key Vault + Azure Identity |
+| Background ingestion | Celery |
+| Structured analysis | Pandas / LlamaIndex Pandas Query Engine |
 
-How it scales: Tools are treated as independent modules. Adding a "Slack Notifier" or "Jira Ticketing" tool is as simple as dropping a new script into the /tools directory.
+## Configuration
 
-Benefit: Keeps the codebase clean and allows for "Tool-on-Demand" loading to save on token context.
+The repository deliberately does **not** contain a live `config.yml` because configuration can contain environment-specific resource names and secret references.
 
-3. Hybrid Storage & Memory
-Short-term: Managed via Azure Cosmos DB (Session-based).
+Start from the safe template:
 
-Long-term: Documents are indexed in Azure AI Search, but the architecture allows for a "Graph" layer to be added for complex relationship mapping between data points.
--->
-## Technical Challenges & Design Decisions
+```bash
+cp config.example.yml config.yml
+```
 
-Building a production-ready RAG system involves more than just hitting an API. Below are the key engineering hurdles I solved:
-  
-  1. **Structured vs. Unstructured Data Ambiguity**
-     - **The Challenge**: Users often ask questions that require "joining" data across different formats (e.g., "Summarize the project notes in this PDF and compare them to the budget in the CSV"). Standard RAG fails here because vector search is poor at tabular math.
-     - **The Solution**: Implemented a Router Orchestrator. I used LlamaIndex to build a `QueryEngine` that detects the intent. If the query requires calculation, it routes to a `PandasQueryEngine`; if it requires semantic meaning, it hits the Azure AI Search vector index.
-  
-  2. **State Management & "Memory Leak" in Conversations**
-      - **The Challenge**: Storing chat history in-memory (RAM) causes data loss on server restarts and prevents horizontal scaling across multiple containers.
-      - **The Solution**: Integrated **Azure Cosmos DB** as a persistent NoSQL backend.
-        - **TTL (Time to Live)**: Configured for session cleanup.
-        - **Partition Keys**: Used `SessionID` as the partition key to ensure millisecond latency even as the database scales to millions of conversations.
-  
-  3. **Preventing "Inference Flooding" (Cost & Rate Limits)**
-      - **The Challenge**: Agentic loops (like Bing Search) can sometimes "hallucinate" and enter an infinite loop of API calls, draining the Azure OpenAI token quota.
-      - **The Solution**: * Implemented **Max-Loop Constraints** on the Agentic Orchestrator.
-      - Developed a **UserUploadedFileIndexer** that computes MD5 Hashes of files. If a user re-uploads the same 50MB PDF, the system recognizes the hash and skips the expensive embedding/ingestion process.
+Then replace the placeholders with the Azure resources for the environment. Keep `config.yml` and `.env` outside version control.
 
----
+The runtime reads `CONFIG_PATH` when supplied; otherwise it looks for `./config.yml`.
 
-## Tech Stack Justification
+Secrets should preferably be supplied through Azure Key Vault or environment variables. Do not place API keys, connection strings, or access tokens in YAML committed to Git.
 
-| Component     | Choice          | Why not the alternative?                        |
-| ------------- | --------------- | ----------------------------------------------- |
-| Vector Store  | Azure AI Search | Better enterprise security and integrated "Hybrid Search" (Keyword + Vector) compared to standalone Pinecone. |
-| Orchestration | LlamaIndex      | Superior "Data Agency" features for structured data compared to LangChain’s more generic chains. |
-| Identity      | Azure Key Vault | Avoids "Secret Leakage" in environment variables; essential for SOC2 compliance. |
+## Authentication
 
----
+- Local development can use `AzureCliCredential` through the credential manager.
+- Cloud deployments use `DefaultAzureCredential` and managed identity where configured.
+- Azure Key Vault is used for secrets that are not supplied through environment variables.
 
-## Upcoming Features & Roadmap:
+## Running locally
 
-### Model Agnostic Infrastructure
+Install the package and development dependencies:
 
-  - [ ] **Multi-Model Routing:** Implement a LiteLLM proxy layer to seamlessly switch between Azure OpenAI, Anthropic (Claude 3.5 Sonnet), and local models via Ollama.
-  - [ ] **Dynamic Model Fallback:** Automatic failover logic to high-context models (like GPT-4o) when complex reasoning is required, while using smaller models (GPT-4o-mini) for routing/summarization to optimize costs.
+```bash
+python -m pip install -e ".[dev]"
+```
 
-### Extensible Agentic Ecosystem
+Run the deterministic startup/package checks:
 
-  - [ ] **Plug-and-Play Tool Registry:** Transition to a decorator-based tool system, allowing new Python functions or API wrappers to be registered as Agent tools with zero configuration.
-  - [ ] **Code Interpreter Sandbox:** Migration to an E2B or Docker-based execution environment for safer, more robust Python data analysis.
-  - [ ] **Advanced RAG (GraphRAG):** Integration of Knowledge Graphs to map entities across Salesforce records and internal PDFs for multi-hop reasoning.
+```bash
+agentic-rag --check
+```
 
-### Enterprise Scalability & Observability
+Run the Chainlit application:
 
-  - [ ] **Distributed Task Queue:** Implementation of Celery/Redis for handling long-running document ingestion and heavy data processing tasks asynchronously.
-  - [ ] **Traces & Evaluation:** Integration of Arize Phoenix or LangSmith for deep tracing of agentic thought chains and RAG "Faithfulness" scoring.
-  - [ ] **Kubernetes Deployment:** Helm charts for auto-scaling the Chainlit frontend and the ingestion workers based on traffic spikes.
+```bash
+agentic-rag --frontend
+```
 
-### Security & Governance
+The application will fail fast if the selected index configuration is missing rather than partially initializing and failing later during retrieval.
 
-  - [ ] **PII Redaction Layer:** Automated masking of sensitive data before it reaches the LLM provider.
-  - [ ] **RBAC (Role-Based Access Control):** Granular permissions for document indexes based on user identity via Entra ID (Azure AD).
+## Testing
 
+The repository CI validates Python 3.12 and 3.13, compilation, Ruff, and pytest:
 
-# Enterprise Agentic RAG Chatbot (Global Edition)
+```bash
+pytest
+ruff check .
+python -m compileall -q src main.py
+```
 
-An advanced, production-grade AI assistant featuring multi-agent orchestration, hybrid vector search, and automated data analysis. This system is designed for high-availability enterprise environments, leveraging a robust Azure-native stack to provide grounded, context-aware insights across structured and unstructured data .
+Cloud-backed end-to-end tests require real Azure resources and credentials and should be executed in an environment provisioned for the application. The default test suite is intentionally safe to run without Azure access.
 
----
+## Engineering decisions
 
-## 🚀 Core Features
+### Structured vs. unstructured data
 
-### 🧠 Hybrid Agentic Orchestration
+Semantic retrieval is useful for documents but is not a substitute for deterministic tabular calculations. The existing architecture therefore keeps the two paths separate and lets the agent choose the appropriate tool.
 
-* **Multi-Model Support:** Dynamically switches between models like GPT-4o and GPT-5.1 depending on reasoning requirements.
-* **Task-Specific Agents:** Features a `FunctionAgent` architecture that selects the best tool for the job, whether it's document retrieval, internet search, or Python-based data analysis.
-* **Global Context Awareness:** A sophisticated system prompt ensures the AI acts as a Technical Architect & Engineering Lead, maintaining high standards for code and data integrity across global operations.
+### Conversation state
 
-### 🔍 Advanced RAG Pipeline
+The agent keeps session context while Azure Cosmos DB provides the persistence layer required for restart and horizontal-scaling scenarios.
 
-* **Unstructured Data (PDFs):** Uses **Azure AI Search** with semantic hybrid retrieval to query deep document repositories ].
-* **Structured Data (CSV):** An integrated **PandasQueryEngine** allows the agent to reason over complex tabular data using natural language.
-* **Smart Ingestion:** Automated `UserUploadedFileIndexer` that handles local file uploads, computes hashes to prevent redundant indexing, and generates automatic summaries for quick previews.
+### Inference and ingestion cost
 
-### 💾 Enterprise-Grade Infrastructure
+The system retains max-loop protections and upload deduplication so repeated files and uncontrolled agent loops do not unnecessarily consume model or indexing capacity.
 
-* **Persistent Memory:** Chat history, user feedback, and UI elements are persisted in **Azure Cosmos DB**, enabling seamless session resumption.
-* **Secure Vaulting:** All sensitive API keys and connection strings are managed via **Azure Key Vault**.
-* **Real-time UI:** Built with **Chainlit**, featuring streaming responses, interactive settings, and live file upload status.
+### Compatibility-first modernization
 
----
+The current modernization keeps the existing business behavior and import contracts while moving the runtime toward a single canonical implementation. Compatibility shims are temporary migration boundaries rather than additional business logic.
 
-## 🛠 Tech Stack
+## Roadmap
 
-| Component | Technology |
-| :--- | :--- |
-| **Orchestration** | [LlamaIndex](https://www.llamaindex.ai/) |
-| **Interface** | [Chainlit](https://chainlit.io/) |
-| **LLMs** | Azure OpenAI (GPT-4o, GPT-5.1) |
-| **Vector Store** | Azure AI Search |
-| **Database** | Azure Cosmos DB (SQL API) |
-| **File Storage** | Azure Blob Storage |
-| **Security** | Azure Key Vault & Managed Identity |
+- [ ] Replace deprecated experimental structured-query dependency with its supported successor once the equivalent stable API is adopted.
+- [ ] Consolidate remaining `*_upgraded.py` compatibility copies after their contracts are covered by tests.
+- [ ] Add provider-level integration tests using mocked Azure clients.
+- [ ] Add end-to-end retrieval/evaluation fixtures.
+- [ ] Add production observability and distributed tracing.
+- [ ] Harden RBAC/tenant-aware access control.
+- [ ] Add production deployment manifests and worker scaling configuration.
 
----
+## License
 
-## 🏗 Architectural Highlights
-
-### 🔄 Dynamic Session Management
-
-The engine partitions conversation history into "past" and "current" segments. It automatically summarizes older context to stay within token limits while preserving critical session data for the LLM.
-
-### 🧪 Robust Logging & Error Handling
-
-A custom `setup_logger` provides granular tracking across the application, including specific suppresses for Azure SDK noise and specialized filters for third-party libraries like LlamaIndex.
-
----
-
-## ⚙️ Configuration & Setup
-
-1. **Environment Variables:**
-   Create a `.env` file based on the provided configuration logic, including your Azure endpoints and Key Vault URLs.
-
-2. **Authentication:**
-   The system uses **Azure Active Directory (OAuth)** for user identity and **DefaultAzureCredential** for secure service-to-service communication.
-
-3. **Running the App:**
-  ```bash
-   chainlit run App.py
+MIT
