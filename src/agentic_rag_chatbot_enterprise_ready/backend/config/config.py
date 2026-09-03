@@ -1,27 +1,52 @@
-import os
-import yaml
+"""Configuration loading and validation for the application runtime.
+
+The loader deliberately remains backward compatible with the existing YAML
+shape while making path resolution deterministic and keeping configuration
+loading free of secret values in logs.
+"""
+
+from __future__ import annotations
+
 import logging
-from typing import Optional, Dict, Any
-from dotenv import load_dotenv
+import os
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-# Constants in UPPER_CASE
-DEFAULT_ENVIRONMENT: str = "local"
-VALID_ENVIRONMENTS = {"local", "local_emulator", "development", "uat", "staging", "production"}
+import yaml
+from dotenv import load_dotenv
 
-# Enum class in PascalCase
+logger = logging.getLogger(__name__)
+
+DEFAULT_ENVIRONMENT = "local"
+VALID_ENVIRONMENTS = {
+    "local",
+    "local_emulator",
+    "development",
+    "uat",
+    "staging",
+    "production",
+}
+
+
+class ConfigurationError(ValueError):
+    """Raised when configuration is structurally invalid for runtime use."""
+
+
 class Environment(str, Enum):
     LOCAL = "local"
-    LOCAL_EMULATOR = 'local_emulator'
+    LOCAL_EMULATOR = "local_emulator"
     DEVELOPMENT = "development"
     UAT = "uat"
     STAGING = "staging"
     PRODUCTION = "production"
 
+
 class CloudProvider(str, Enum):
     AZURE = "azure"
     AWS = "aws"
     GCP = "gcp"
+
 
 class DatabaseProvider(str, Enum):
     COSMOS_DB = "cosmos_db"
@@ -29,11 +54,10 @@ class DatabaseProvider(str, Enum):
     POSTGRESQL = "postgresql"
     MONGODB = "mongodb"
 
+
 class IndexConfig:
-    """
-    Represents the index-specific configuration.
-    This ties together the Azure AI Search, storage, embed, and RAG settings.
-    """
+    """Represents the configuration for one retrieval/index target."""
+
     def __init__(self, name: str, settings: Dict[str, Any]) -> None:
         self.name = name
         self.settings = settings
@@ -45,10 +69,9 @@ class IndexConfig:
     @property
     def storage_account(self) -> Dict[str, Any]:
         return self.settings.get("storage_account", {})
-    
+
     @property
     def s3_bucket(self) -> Dict[str, Any]:
-        """Get the S3 bucket configuration for AWS."""
         return self.settings.get("s3_bucket", {})
 
     @property
@@ -58,176 +81,188 @@ class IndexConfig:
     @property
     def rag(self) -> Dict[str, Any]:
         return self.settings.get("rag", {})
-    
+
     @property
     def key_vault(self) -> Dict[str, Any]:
         return self.settings.get("key_vault", {})
-    
+
     @property
     def secrets_manager(self) -> Dict[str, Any]:
-        """Get the AWS Secrets Manager configuration."""
         return self.settings.get("secrets_manager", {})
 
     @property
     def di(self) -> Dict[str, Any]:
-        """Get the Document Intelligence configuration."""
         return self.settings.get("di", {})
-    
+
     @property
     def llms(self) -> Dict[str, Any]:
-        """Get the LLM configurations."""
         return self.settings.get("llms", {})
 
     @property
     def dev_cosmos_db(self) -> Dict[str, Any]:
-        """Get the Cosmos DB Dev configuration."""
         return self.settings.get("dev_cosmos_db", {})
-    
+
     @property
     def uat_cosmos_db(self) -> Dict[str, Any]:
-        """Get the Cosmos DB Uat configuration."""
         return self.settings.get("uat_cosmos_db", {})
-    
+
     @property
     def prod_cosmos_db(self) -> Dict[str, Any]:
-        """Get the Cosmos DB Prod configuration."""
         return self.settings.get("prod_cosmos_db", {})
-    
+
     @property
     def dynamo_db(self) -> Dict[str, Any]:
-        """Get the DynamoDB configuration."""
         return self.settings.get("dynamo_db", {})
 
     @property
     def postgresql(self) -> Dict[str, Any]:
-        """Get the PostgreSQL configuration."""
         return self.settings.get("postgresql", {})
 
     @property
     def mongodb(self) -> Dict[str, Any]:
-        """Get the MongoDB configuration."""
         return self.settings.get("mongodb", {})
 
     @property
     def ai_service(self) -> Dict[str, Any]:
-        """Get the Cosmos DB Prod configuration."""
         return self.settings.get("ai_service", {})
 
-# Class in PascalCase
+
 class Config:
-    def __init__(self, config_path: Optional[str] = None) -> None:
-        self._config_path: str = str(config_path or os.getenv("CONFIG_PATH", "./config.yml"))
-        logging.info(f"Config path set to: {self._config_path}")
-        logging.info(f"Current working directory: {os.getcwd()}")
-        logging.info(f"Absolute config path: {os.path.abspath(self._config_path)}")
+    """Load application configuration without requiring cloud access at import."""
+
+    def __init__(self, config_path: Optional[str | Path] = None) -> None:
+        self._config_path = self._resolve_config_path(config_path)
         self._config: Optional[Dict[str, Any]] = None
         self._load_env_if_local()
-    
+        logger.info("Configuration path: %s", self._config_path)
+
+    @staticmethod
+    def _resolve_config_path(config_path: Optional[str | Path]) -> Path:
+        """Resolve an explicit path, CONFIG_PATH, or a repository-local config."""
+        if config_path:
+            candidate = Path(config_path).expanduser()
+        elif os.getenv("CONFIG_PATH"):
+            candidate = Path(os.environ["CONFIG_PATH"]).expanduser()
+        else:
+            candidate = Path("config.yml")
+
+        if candidate.is_absolute():
+            return candidate
+
+        # Resolve relative paths from the current working directory first.
+        cwd_candidate = Path.cwd() / candidate
+        if cwd_candidate.exists():
+            return cwd_candidate.resolve()
+
+        # This also makes `agentic-rag` predictable when invoked outside the repo.
+        # The package lives under <repo>/src/<package>/backend/config/config.py.
+        repo_root = Path(__file__).resolve().parents[4]
+        return (repo_root / candidate).resolve()
+
     def _load_env_if_local(self) -> None:
-        """Load environment variables from .env file if in local development mode."""
-        if self.environment == Environment.LOCAL:
-            # Prefer .env.local if it exists, otherwise .env
-            env_file = ".env.local" if os.path.exists(".env.local") else ".env"
+        """Load .env.local/.env only for local development."""
+        if self.environment != Environment.LOCAL:
+            return
+        package_root = Path(__file__).resolve().parents[4]
+        env_file = package_root / ".env.local"
+        if not env_file.exists():
+            env_file = package_root / ".env"
+        if env_file.exists():
             load_dotenv(env_file)
-            logging.debug(f"Loaded local environment file: {env_file}")
-    
+            logger.debug("Loaded local environment variables from %s", env_file)
+
     @property
     def environment(self) -> Environment:
-        """Get the current environment."""
-        env_str = os.getenv("ENVIRONMENT", "local").lower()
+        env_str = os.getenv("ENVIRONMENT", DEFAULT_ENVIRONMENT).strip().lower()
         try:
             return Environment(env_str)
         except ValueError:
-            logging.warning(f"Invalid ENVIRONMENT value '{env_str}'. Defaulting to LOCAL.")
-            return Environment.LOCAL
-    
+            raise ConfigurationError(
+                f"Invalid ENVIRONMENT value {env_str!r}; expected one of "
+                f"{sorted(VALID_ENVIRONMENTS)}"
+            ) from None
+
     @property
     def is_local(self) -> bool:
-        """Check if running in local development environment."""
         return self.environment == Environment.LOCAL
-    
+
     @property
     def is_cloud(self) -> bool:
-        """Check if running in any cloud environment."""
         return self.environment in {
             Environment.DEVELOPMENT,
             Environment.STAGING,
-            Environment.PRODUCTION
+            Environment.PRODUCTION,
         }
-    
+
     @property
     def key_vault_url(self) -> Optional[str]:
-        """
-        Retrieve the Azure Key Vault URL from the environment variable or
-        from the YAML configuration file.
-        """
         azure_url = os.getenv("AZURE_KEY_VAULT_URL")
         if azure_url:
             return azure_url
         return self._get_config().get("azure", {}).get("key_vault", {}).get("url")
-    
+
     def _get_config(self) -> Dict[str, Any]:
-        """
-        Load and return the configuration from a YAML file.
-        """
-        if self._config is None:
-            try:
-                logging.info(f"Attempting to load config from: {self._config_path}")
-                with open(self._config_path, "r") as f:
-                    loaded_config = yaml.safe_load(f) or {}
-                    if self.environment == Environment.LOCAL:
-                        logging.info(f"Loaded config: {loaded_config}")
-                    self._config = loaded_config
-            except FileNotFoundError:
-                logging.warning(f"Configuration file not found at '{self._config_path}'. Using empty config.")
-                self._config = {}
-            except yaml.YAMLError as err:
-                logging.error(f"Error parsing YAML file '{self._config_path}': {err}. Using empty config.")
-                self._config = {}
+        """Load YAML once; missing config remains non-fatal until validation/runtime use."""
+        if self._config is not None:
+            return self._config
+
+        try:
+            with self._config_path.open("r", encoding="utf-8") as config_file:
+                loaded_config = yaml.safe_load(config_file) or {}
+        except FileNotFoundError:
+            logger.warning("Configuration file not found: %s", self._config_path)
+            self._config = {}
+            return self._config
+        except yaml.YAMLError as exc:
+            raise ConfigurationError(
+                f"Unable to parse YAML configuration at {self._config_path}: {exc}"
+            ) from exc
+
+        if not isinstance(loaded_config, dict):
+            raise ConfigurationError(
+                f"Configuration root must be a YAML mapping: {self._config_path}"
+            )
+        self._config = loaded_config
         return self._config
 
     @property
     def indexes(self) -> Dict[str, IndexConfig]:
-        """
-        Returns a dictionary of index configurations, keyed by index name.
-        Supports both YAML config and environment variables.
-        """
-        # First try to get from YAML config
         indexes_config = self._get_config().get("indexes", {})
-        return {name: IndexConfig(name, settings) for name, settings in indexes_config.items()}
+        if not isinstance(indexes_config, dict):
+            raise ConfigurationError("'indexes' must be a mapping")
+        return {
+            name: IndexConfig(name, settings if isinstance(settings, dict) else {})
+            for name, settings in indexes_config.items()
+        }
 
     @property
     def cloud_provider(self) -> CloudProvider:
-        """Get the configured cloud provider."""
-        provider = self._get_config().get("cloud", {}).get("provider", "azure").lower()
-        return CloudProvider(provider)
+        provider = str(self._get_config().get("cloud", {}).get("provider", "azure")).lower()
+        try:
+            return CloudProvider(provider)
+        except ValueError:
+            raise ConfigurationError(
+                f"Invalid cloud provider {provider!r}; expected azure, aws, or gcp"
+            ) from None
 
     @property
     def database_provider(self) -> DatabaseProvider:
-        """Get the configured database provider."""
-        provider = self._get_config().get("database", {}).get("provider", "cosmos_db").lower()
-        return DatabaseProvider(provider)
+        provider = str(
+            self._get_config().get("database", {}).get("provider", "cosmos_db")
+        ).lower()
+        try:
+            return DatabaseProvider(provider)
+        except ValueError:
+            raise ConfigurationError(
+                f"Invalid database provider {provider!r}; expected cosmos_db, dynamo_db, "
+                "postgresql, or mongodb"
+            ) from None
 
     @property
     def llms(self) -> Dict[str, Any]:
-        """
-        Returns the LLM configurations from the config file.
-        """
         return self._get_config().get("llms", {})
 
     def get_llm_config(self, model_name: str) -> Dict[str, Any]:
-        """
-        Get configuration for a specific LLM model.
-        
-        Args:
-            model_name: The name of the LLM model (e.g., 'deepseek-r1')
-            
-        Returns:
-            Dictionary containing the model's configuration
-            
-        Raises:
-            KeyError: If the requested model configuration is not found
-        """
         llm_config = self.llms.get(model_name)
         if not llm_config:
             raise KeyError(f"Configuration for LLM model '{model_name}' not found in config file")
@@ -235,54 +270,73 @@ class Config:
 
     @property
     def document_intelligence_api_key_name(self) -> Optional[str]:
-        """Get the Document Intelligence API key name from Key Vault."""
-        return self._get_config().get("azure", {}).get("key_vault", {}).get("document_intelligence_api_key_name")
+        return self._get_config().get("azure", {}).get("key_vault", {}).get(
+            "document_intelligence_api_key_name"
+        )
 
     @property
     def document_intelligence_endpoint(self) -> Optional[str]:
-        """Get the Document Intelligence endpoint."""
-        return self._get_config().get("azure", {}).get("key_vault", {}).get("document_intelligence_endpoint")
+        return self._get_config().get("azure", {}).get("key_vault", {}).get(
+            "document_intelligence_endpoint"
+        )
 
     @property
     def openai_api_key_name(self) -> Optional[str]:
-        """Get the OpenAI API key name from Key Vault."""
-        return self._get_config().get("azure", {}).get("key_vault", {}).get("openai_api_key_name")
+        return self._get_config().get("azure", {}).get("key_vault", {}).get(
+            "openai_api_key_name"
+        )
 
     @property
     def secrets_management(self) -> Dict[str, Any]:
-        """Get the secrets management configuration (Key Vault, AWS Secrets Mgr, etc)."""
         if self.cloud_provider == CloudProvider.AZURE:
             return self._get_config().get("azure", {}).get("key_vault", {})
-        elif self.cloud_provider == CloudProvider.AWS:
+        if self.cloud_provider == CloudProvider.AWS:
             return self._get_config().get("aws", {}).get("secrets_manager", {})
         return self._get_config().get("secrets", {})
 
     @property
     def cosmos_db_uri(self) -> Optional[str]:
-        """Get the Cosmos Db Key from key Vault."""
         return self._get_config().get("azure", {}).get("key_vault", {}).get("uri")
-    
+
     @property
     def dynamo_db_table(self) -> Optional[str]:
-        """Get the DynamoDB table name."""
         return self._get_config().get("aws", {}).get("dynamo_db", {}).get("table_name")
 
     @property
     def postgresql_config(self) -> Dict[str, Any]:
-        """Get the PostgreSQL configuration."""
         return self._get_config().get("database", {}).get("postgresql", {})
 
     @property
     def mongodb_config(self) -> Dict[str, Any]:
-        """Get the MongoDB configuration."""
         return self._get_config().get("database", {}).get("mongodb", {})
 
     @property
     def ai_service(self) -> Dict[str, Any]:
-        """
-        Returns the AI Service configurations from the config file.
-        """
         return self._get_config().get("ai_service", {})
 
-# Module-level instance in lowercase with underscores
+    def validate_runtime_config(self) -> None:
+        """Validate the minimum configuration needed before starting cloud services.
+
+        This is intentionally explicit rather than executed at module import so
+        tooling, tests, and package discovery can run without Azure credentials.
+        """
+        config = self._get_config()
+        if not config:
+            raise ConfigurationError(
+                f"No runtime configuration found at {self._config_path}. "
+                "Copy config.example.yml to config.yml and provide environment-specific values."
+            )
+
+        missing_sections = [section for section in ("indexes", "llms") if not config.get(section)]
+        if missing_sections:
+            raise ConfigurationError(
+                "Missing required configuration sections: " + ", ".join(missing_sections)
+            )
+
+        if self.cloud_provider == CloudProvider.AZURE and not self.key_vault_url:
+            raise ConfigurationError(
+                "Azure configuration requires azure.key_vault.url or AZURE_KEY_VAULT_URL"
+            )
+
+
 config: Config = Config()

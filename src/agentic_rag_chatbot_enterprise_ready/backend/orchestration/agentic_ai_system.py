@@ -27,7 +27,7 @@ class AsyncAgenticAiSystem(_ModernAsyncAgenticAiSystem):
                 content = Path(path).read_bytes()
             payload.append({"name": name, "content": content})
 
-        status = self.upload_and_index_files_async(payload)
+        status = await self.upload_and_index_files_async(payload)
         return {item["name"]: status for item in payload}
 
 
