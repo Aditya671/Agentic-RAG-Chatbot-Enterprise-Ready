@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__
 
 import ast
 import asyncio
@@ -71,7 +71,7 @@ def _normalize_settings(settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if source["select_ai_model"] not in valid_models:
         source["select_ai_model"] = DEFAULT_MODEL.value
 
-    source["set_model_top_k"] = max(0, min(30, int(source["set_model_top_k"])))
+    source["set_model_top_k"] = max(1, min(30, int(source["set_model_top_k"])))
     source["set_creativity_level"] = max(
         0.0, min(1.0, float(source["set_creativity_level"]))
     )
@@ -122,7 +122,7 @@ def app_default_setting(**overrides):
             id="set_model_top_k",
             label="Adjust Top Search Results",
             initial=settings["set_model_top_k"],
-            min=0,
+            min=1,
             max=30,
             step=1,
             description=(
