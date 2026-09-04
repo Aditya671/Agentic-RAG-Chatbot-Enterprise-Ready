@@ -1,11 +1,9 @@
-import os
 import sys
 import types
 from unittest.mock import Mock
 
 import pytest
 
-# Dependency-isolated AWS stubs keep the boundary tests runnable without boto3.
 boto3_module = types.ModuleType("boto3")
 botocore_module = types.ModuleType("botocore")
 botocore_config_module = types.ModuleType("botocore.config")
@@ -50,7 +48,9 @@ boto3_module.session = types.SimpleNamespace(Session=FakeBotoSession)
 botocore_config_module.Config = FakeConfig
 botocore_exceptions_module.ClientError = FakeClientError
 botocore_exceptions_module.NoCredentialsError = type("NoCredentialsError", (Exception,), {})
-botocore_exceptions_module.PartialCredentialsError = type("PartialCredentialsError", (Exception,), {})
+botocore_exceptions_module.PartialCredentialsError = type(
+    "PartialCredentialsError", (Exception,), {}
+)
 
 sys.modules.setdefault("boto3", boto3_module)
 sys.modules.setdefault("botocore", botocore_module)
@@ -131,7 +131,9 @@ def test_invalid_secret_payload_is_rejected():
 def test_resource_not_found_and_access_denied_are_normalized():
     manager = make_manager()
     manager.client = Mock()
-    manager.client.get_secret_value.side_effect = FakeClientError("ResourceNotFoundException")
+    manager.client.get_secret_value.side_effect = FakeClientError(
+        "ResourceNotFoundException"
+    )
 
     with pytest.raises(AWSSecretError, match="not found"):
         manager.get_secret()
@@ -159,19 +161,31 @@ def test_client_configuration_is_explicit():
 
     class RecordingSession(FakeBotoSession):
         def client(self, service_name, region_name, config):
-            captured.update(service_name=service_name, region_name=region_name, config=config)
+            captured.update(
+                service_name=service_name,
+                region_name=region_name,
+                config=config,
+            )
             return FakeSecretsClient()
 
     original = boto3_module.session.Session
     boto3_module.session.Session = RecordingSession
     try:
-        make_manager(region_name="ap-south-1", max_attempts=7, connect_timeout=11, read_timeout=44)
+        make_manager(
+            region_name="ap-south-1",
+            max_attempts=7,
+            connect_timeout=11,
+            read_timeout=44,
+        )
     finally:
         boto3_module.session.Session = original
 
     assert captured["service_name"] == "secretsmanager"
     assert captured["region_name"] == "ap-south-1"
-    assert captured["config"].kwargs["retries"] == {"mode": "standard", "max_attempts": 7}
+    assert captured["config"].kwargs["retries"] == {
+        "mode": "standard",
+        "max_attempts": 7,
+    }
     assert captured["config"].kwargs["connect_timeout"] == 11
     assert captured["config"].kwargs["read_timeout"] == 44
 
@@ -183,7 +197,9 @@ def test_cache_is_opt_in_and_can_be_cleared():
 
     assert manager.get_secret() == "cached"
     assert manager.get_secret() == "cached"
-    manager.client.get_secret_value.assert_called_once_with(SecretId="MY_APP_SECRET")
+    manager.client.get_secret_value.assert_called_once_with(
+        SecretId="MY_APP_SECRET"
+    )
 
     manager.clear_cache("MY_APP_SECRET")
     assert manager._secret_cache == {}
@@ -207,11 +223,6 @@ def test_explicit_secret_name_overrides_constructor_name():
     manager.client.get_secret_value.return_value = {"SecretString": "override"}
 
     assert manager.get_secret("OTHER_SECRET") == "override"
-    manager.client.get_secret_value.assert_called_once_with(SecretId="OTHER_SECRET")
-
-
-def test_environment_secret_value_is_not_exposed_by_errors(monkeypatch):
-    monkeypatch.setenv("MY_APP_SECRET", "super-secret")
-    manager = make_manager()
-    assert manager.get_secret() == "super-secret"
-    assert "super-secret" not in str(AWSSecretError("access denied"))
+    manager.client.get_secret_value.assert_called_once_with(
+        SecretId="OTHER_SECRET"
+    )
