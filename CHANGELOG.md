@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.orchestration.graph_rag` to the canonical GraphRAG implementation surface.
+- Replaced the deprecated `KnowledgeGraphIndex`/`SimpleGraphStore` architecture with `PropertyGraphIndex`/`SimplePropertyGraphStore`.
+- Kept graph storage and vector retrieval as explicit, injectable dependencies.
+- Preserved explicit Nebula configuration and prevented silent fallback from configured persistent GraphRAG to in-memory storage.
+- Added incremental graph insertion, existing-graph loading, stable GraphRAG errors, and resource lifecycle management.
+- Moved GraphRAG regression coverage into the maintained top-level test suite and removed the obsolete external `/mnt/data` test dependency.
+- Reduced `graph_rag_upgraded.py` to a compatibility re-export and removed its migration-era upgrade report.
+
+---
+
 ## [0.2.12] - 2026-09-04
 
 ### Changed
