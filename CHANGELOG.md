@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-09-04
+
+### Changed
+
+- Ported the retained legacy-runtime regression checks into the maintained top-level `tests/` boundary.
+- Removed the dependency of those regression checks on `/mnt/data` or other machine-specific temporary source paths.
+- Bumped the package version to `0.2.5` for the maintained runtime/test-boundary cleanup.
+
+---
+
 ## [0.2.4] - 2026-09-04
 
 ### Changed
