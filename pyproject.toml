@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.26"
+version = "0.2.27"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -30,10 +30,11 @@ dependencies = [
   "python-dotenv==1.2.3",
   "httpx==0.28.1",
   "requests>=2.32.0,<3",
+  "PyJWT>=2.10.0,<3",
   "PyMuPDF>=1.26.0,<2",
   "celery>=5.6.0,<6",
   "boto3>=1.42.0,<2",
-  "botocore>=1.42.0,<2",
+  "botocore>=1.42.0,<3",
   "pymongo>=4.15.0,<5",
   "PyYAML>=6.0.2,<7",
 ]
