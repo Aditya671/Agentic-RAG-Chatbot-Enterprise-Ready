@@ -44,3 +44,5 @@ Use a package only when it solves a concrete application requirement. Prefer man
 ## Current dependency policy
 
 The authoritative dependency versions live in `pyproject.toml`. This document is architectural guidance, not a second dependency manifest.
+
+`azure-ai-projects==2.4.0` is intentionally retained while the application uses the LlamaIndex 0.14.x line. Azure AI Projects 2.5.0 requires OpenAI 3.x, while the LlamaIndex OpenAI integration used by this application requires OpenAI <3; keeping 2.4.0 and `openai>=2.8.0,<3` avoids that resolver conflict until the LlamaIndex/OpenAI stack is upgraded together.
