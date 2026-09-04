@@ -15,25 +15,28 @@ class FakeAgent:
         self.kwargs = kwargs
 
 
-def test_builder_uses_runtime_retrieval_policy_and_optional_reranker(monkeypatch):
+def test_builder_uses_runtime_owned_retriever_and_optional_reranker(monkeypatch):
     captured = {}
 
-    def fake_retriever(index, retrieval, **kwargs):
-        captured["retrieval"] = retrieval
+    def fake_retriever(**kwargs):
         captured["kwargs"] = kwargs
         return "provider-retriever"
 
-    monkeypatch.setattr(agent_builder, "build_retriever", fake_retriever)
     monkeypatch.setattr(agent_builder, "FunctionAgent", FakeAgent)
+    monkeypatch.setattr(
+        agent_builder,
+        "build_retriever_tool",
+        lambda **kwargs: FakeTool(kwargs["name"]),
+    )
+    monkeypatch.setattr(
+        agent_builder,
+        "build_function_tool",
+        lambda fn, name, description: FakeTool(name),
+    )
 
     system = SimpleNamespace(
-        runtime_boundary=SimpleNamespace(
-            retrieval=SimpleNamespace(top_k=17, query_mode="semantic_hybrid")
-        ),
-        index="index",
+        build_provider_retriever=fake_retriever,
         reranker="reranker",
-        enable_coding_assistant=False,
-        code_interpreter=None,
         graph_rag_system=None,
         csv_engine=None,
         llm="llm",
@@ -41,14 +44,10 @@ def test_builder_uses_runtime_retrieval_policy_and_optional_reranker(monkeypatch
         check_indexing_status=lambda task_id: "ok",
         query_local_file_index=lambda query: "local",
         bing_grounding_tool=lambda query: "web",
-        _AsyncAgenticAiSystem__build_retriever_tool=lambda **kwargs: FakeTool(kwargs["name"]),
-        _AsyncAgenticAiSystem__build_function_tool=lambda fn, name, description: FakeTool(name),
     )
 
     agent = agent_builder.build_agent(system)
 
-    assert captured["retrieval"].top_k == 17
-    assert captured["retrieval"].query_mode == "semantic_hybrid"
     assert captured["kwargs"] == {"node_postprocessors": ["reranker"]}
     assert agent.kwargs["llm"] == "llm"
     assert [tool.name for tool in agent.kwargs["tools"]] == [
@@ -60,16 +59,22 @@ def test_builder_uses_runtime_retrieval_policy_and_optional_reranker(monkeypatch
     ]
 
 
-def test_builder_includes_csv_and_optional_tools(monkeypatch):
-    monkeypatch.setattr(agent_builder, "build_retriever", lambda *args, **kwargs: "retriever")
+def test_builder_adds_supported_graph_and_csv_tools(monkeypatch):
     monkeypatch.setattr(agent_builder, "FunctionAgent", FakeAgent)
+    monkeypatch.setattr(
+        agent_builder,
+        "build_retriever_tool",
+        lambda **kwargs: FakeTool(kwargs["name"]),
+    )
+    monkeypatch.setattr(
+        agent_builder,
+        "build_function_tool",
+        lambda fn, name, description: FakeTool(name),
+    )
 
     system = SimpleNamespace(
-        runtime_boundary=SimpleNamespace(retrieval=SimpleNamespace()),
-        index="index",
+        build_provider_retriever=lambda **kwargs: "retriever",
         reranker=None,
-        enable_coding_assistant=True,
-        code_interpreter=SimpleNamespace(run_python=lambda code: "result"),
         graph_rag_system=SimpleNamespace(index=True, query=lambda query: "graph"),
         csv_engine=SimpleNamespace(query=lambda query: "csv"),
         llm="llm",
@@ -77,14 +82,11 @@ def test_builder_includes_csv_and_optional_tools(monkeypatch):
         check_indexing_status=lambda task_id: "ok",
         query_local_file_index=lambda query: "local",
         bing_grounding_tool=lambda query: "web",
-        _AsyncAgenticAiSystem__build_retriever_tool=lambda **kwargs: FakeTool(kwargs["name"]),
-        _AsyncAgenticAiSystem__build_function_tool=lambda fn, name, description: FakeTool(name),
     )
 
     agent = agent_builder.build_agent(system)
 
-    assert [tool.name for tool in agent.kwargs["tools"]][-3:] == [
+    assert [tool.name for tool in agent.kwargs["tools"]][-2:] == [
         "graph_rag_tool",
-        "code_interpreter_tool",
         "csv_tool",
     ]
