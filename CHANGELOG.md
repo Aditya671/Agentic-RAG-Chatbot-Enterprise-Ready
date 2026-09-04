@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.20] - 2026-09-04
+
+### Changed
+
+- Consolidated Azure AI Search initialization on the canonical `backend.indexer.index_engine` implementation.
+- Reduced `azure_search_initializer.py` to a compatibility adapter for the historical import path.
+- Removed the duplicate `azure_search_initializer_upgraded.py` implementation.
+- Removed the migration-era Azure Search initializer regression suite and upgrade report.
+- Preserved the existing initializer API, including `initialize_index` and `close_index`.
+
+---
+
 ## [0.2.19] - 2026-09-04
 
 ### Changed
