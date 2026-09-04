@@ -12,6 +12,7 @@ from backend.orchestration.execution_contract import AgentResponse
 from backend.orchestration.provider_boundaries import build_structured_query_engine
 from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.runtime_boundary import AgentRuntimeBoundary
+from backend.orchestration.runtime_policy import validate_top_k
 from backend.prompts import (
     AGENTIC_PANDAS_QUERY_ENGINE_INSTRUCTION_PROMPT,
     AGENTIC_PANDAS_QUERY_ENGINE_PANDAS_PROMPT,
@@ -23,17 +24,22 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
     """Compatibility agent whose runtime path uses explicit provider seams."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        similarity_top_k = kwargs.get("similarity_top_k", 20)
+        similarity_top_k = validate_top_k(kwargs.get("similarity_top_k", 20))
         self.runtime_boundary = AgentRuntimeBoundary(
-            RetrievalConfig(top_k=int(similarity_top_k))
+            RetrievalConfig(top_k=similarity_top_k)
         )
         super().__init__(*args, **kwargs)
         self._refresh_runtime_boundary()
         self._rebuild_converged_runtime()
 
+    @staticmethod
+    def _validate_top_k(value: int) -> int:
+        """Expose the shared retrieval-policy validator on the runtime surface."""
+        return validate_top_k(value)
+
     def _refresh_runtime_boundary(self) -> None:
         self.runtime_boundary = AgentRuntimeBoundary(
-            RetrievalConfig(top_k=self.similarity_top_k)
+            RetrievalConfig(top_k=self._validate_top_k(self.similarity_top_k))
         )
 
     def _rebuild_converged_runtime(self) -> None:
@@ -86,7 +92,7 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
         )
 
     def set_similarity_top_k(self, similarity_top_k: int) -> None:
-        super().set_similarity_top_k(similarity_top_k)
+        super().set_similarity_top_k(self._validate_top_k(similarity_top_k))
         self._refresh_runtime_boundary()
         self._rebuild_converged_runtime()
 
