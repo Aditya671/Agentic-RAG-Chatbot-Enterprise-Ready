@@ -54,3 +54,50 @@ All notable changes to this project will be documented in this file. This projec
 - Preserved the existing initializer API, including `initialize_index` and `close_index`.
 
 ---
+
+## [0.2.19] - 2026-09-04
+
+### Changed
+
+- Moved the maintained orchestration implementation from the historical `agentic_ai_system_upgraded.py` path into an explicit internal runtime module.
+- Kept `agentic_ai_system.py` as the stable public agent surface, including the upload wrapper contract.
+- Reduced `agentic_ai_system_upgraded.py` to a compatibility-only re-export.
+- Updated the integrated runtime to inherit from the internal canonical runtime owner.
+- Added maintained regression coverage for orchestration ownership and compatibility direction.
+
+---
+
+## [0.2.18] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.indexer.index_engine` to the canonical Azure AI Search/LlamaIndex initializer.
+- Reduced `index_engine_upgraded.py` to a compatibility import.
+- Preserved sync/async clients, current and legacy schema mappings, validation, explicit index-management, and lifecycle behavior.
+- Removed the migration-era index-engine regression suite and upgrade report.
+
+---
+
+## [0.2.17] - 2026-09-04
+
+### Changed
+
+- Removed the obsolete `runtime_components.py` implementation, which still carried the retired code-interpreter construction surface.
+- Consolidated optional reranker and GraphRAG construction on `component_runtime.py`.
+- Removed the obsolete runtime-components regression suite.
+- Removed the first-generation orchestration upgrade report; maintained regression coverage now lives under `tests/`.
+- Removed the retired code-interpreter builder from the public orchestration package exports.
+
+---
+
+## [0.2.16] - 2026-09-04
+
+### Changed
+
+- Consolidated PDF ingestion onto the canonical multi-format `llama_indexer` pipeline.
+- Reduced `pdf_indexer.py` to a compatibility adapter with no independent indexing implementation.
+- Removed the duplicate `pdf_indexer_upgraded.py` implementation.
+- Removed the migration-era PDF indexer regression suite and upgrade report.
+- Preserved the historical PDF helper surface through delegation to canonical ingestion contracts.
+
+---
