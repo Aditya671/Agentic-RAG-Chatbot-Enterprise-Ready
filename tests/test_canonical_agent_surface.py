@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ORCH = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration"
 CANONICAL = ORCH / "agentic_ai_system.py"
 RUNTIME = ORCH / "agentic_ai_system_runtime.py"
-UPGRADED = ORCH / "agentic_ai_system_upgraded.py"
+RETIRED = ORCH / "agentic_ai_system_upgraded.py"
 INTEGRATED = ORCH / "integrated_agent_system.py"
 
 
@@ -28,10 +28,8 @@ def test_runtime_implementation_has_stable_internal_owner():
     assert "from backend.orchestration.agentic_ai_system_runtime" not in source
 
 
-def test_upgraded_module_is_compatibility_only():
-    source = UPGRADED.read_text(encoding="utf-8")
-    assert "from .agentic_ai_system_runtime import AsyncAgenticAiSystem, logger" in source
-    assert "class AsyncAgenticAiSystem" not in source
+def test_obsolete_agent_upgraded_shim_is_absent():
+    assert not RETIRED.exists()
 
 
 def test_integrated_runtime_uses_internal_runtime_owner():

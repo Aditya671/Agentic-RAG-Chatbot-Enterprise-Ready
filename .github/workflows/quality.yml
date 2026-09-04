@@ -24,6 +24,8 @@ jobs:
         run: python -m compileall -q src main.py
       - name: Ruff
         run: ruff check .
+      - name: Pylance-compatible type check
+        run: pyright
       - name: Tests
         run: pytest
       - name: Build wheel

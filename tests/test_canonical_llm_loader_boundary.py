@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration/llm_loader.py"
-UPGRADED = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration/llm_loader_upgraded.py"
+RETIRED = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration/llm_loader_upgraded.py"
 
 
 def _imports(path: Path) -> set[str]:
@@ -26,9 +26,10 @@ def test_canonical_loader_contains_the_implementation() -> None:
     assert "class LLMConfigurationError" in text
 
 
-def test_upgraded_loader_is_compatibility_only() -> None:
-    text = UPGRADED.read_text(encoding="utf-8")
-    assert "from .llm_loader import *" in text
-    assert "def load_llm(" not in text
-    assert "def load_embed(" not in text
-    assert not any(name.startswith("azure.") for name in _imports(UPGRADED))
+def test_obsolete_upgraded_loader_is_absent() -> None:
+    assert not RETIRED.exists()
+
+
+def test_canonical_loader_does_not_require_an_upgraded_runtime_module() -> None:
+    imports = _imports(CANONICAL)
+    assert "llm_loader_upgraded" not in imports
