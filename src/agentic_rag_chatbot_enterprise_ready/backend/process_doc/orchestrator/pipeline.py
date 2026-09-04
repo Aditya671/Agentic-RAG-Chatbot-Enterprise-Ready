@@ -21,14 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentDigitizationPipeline:
-    """Orchestrate extraction, safety processing, enrichment, and review routing.
-
-    A checksum is reserved only after successful processing. Failed extraction or
-    enrichment therefore remains retryable instead of being incorrectly reported
-    as already processed on the next attempt.
-    """
+    """Orchestrate extraction, safety processing, enrichment, and review routing."""
 
     def __init__(self, db_path: str = "processed_docs.db") -> None:
+        if not isinstance(db_path, str) or not db_path.strip():
+            raise ValueError("db_path must be a non-empty string.")
+
         self.azure_extractor = AzureDocumentExtractor()
         self.office_extractor = OfficeDocumentExtractor()
         self.multimodal_extractor = MultiModalExtractor()
@@ -36,7 +34,11 @@ class DocumentDigitizationPipeline:
         self.pii_redactor = PIIRedactor()
         self.metadata_extractor = LLMMetadataExtractor()
         self.graph_extractor = GraphEntityExtractor()
-        self.hitl_queue = HITLQueueManager(db_path=db_path.replace("processed_docs", "hitl_queue"))
+
+        processed_path = Path(db_path).expanduser()
+        hitl_path = processed_path.with_name(f"{processed_path.stem}.hitl.db")
+        self.hitl_queue = HITLQueueManager(db_path=str(hitl_path))
+
         self._processed_checksums: set[str] = set()
         self._processing_checksums: set[str] = set()
 
@@ -92,9 +94,8 @@ class DocumentDigitizationPipeline:
                 extracted_data = {"text": text}
 
             raw_text = str(extracted_data.get("text") or "")
-            confidence = extracted_data.get("confidence", 1.0)
             try:
-                confidence = float(confidence)
+                confidence = float(extracted_data.get("confidence", 1.0))
             except (TypeError, ValueError):
                 confidence = 0.0
 
