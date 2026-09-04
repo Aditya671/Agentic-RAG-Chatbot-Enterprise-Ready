@@ -6,6 +6,7 @@ from .harness import HarnessCase, HarnessEngine, HarnessResult, ScenarioCatalog
 from .monitoring import HealthSnapshot, MonitoringEngine
 from .observability import AgentObservability
 from .retrospective import Retrospective, RetrospectiveEngine
+from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationResult
 from .store import InMemoryReliabilityStore
 
 __all__ = [
@@ -18,6 +19,8 @@ __all__ = [
     "JsonlReliabilityStore",
     "EvaluationEngine",
     "EvaluationResult",
+    "ScenarioEvaluationEngine",
+    "ScenarioEvaluationResult",
     "HarnessCase",
     "HarnessEngine",
     "HarnessResult",
