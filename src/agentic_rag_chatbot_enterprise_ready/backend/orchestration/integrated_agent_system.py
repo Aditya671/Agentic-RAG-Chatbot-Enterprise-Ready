@@ -3,20 +3,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.ai_models import AIModelTypes
+from backend.llm_loader import load_llm
 from backend.orchestration.agent_builder import build_agent
-from backend.orchestration.agentic_ai_system_upgraded import AsyncAgenticAiSystem
+from backend.orchestration.agentic_ai_system_upgraded import AsyncAgenticAiSystem, logger
+from backend.orchestration.code_interpreter import CodeInterpreterSandbox
 from backend.orchestration.component_runtime import build_code_interpreter, build_graph_rag, build_reranker
 from backend.orchestration.execution_contract import AgentResponse
-from backend.orchestration.provider_boundaries import build_structured_query_engine, build_retriever
+from backend.orchestration.graph_rag import GraphRAGSystem
+from backend.orchestration.provider_boundaries import build_retriever, build_structured_query_engine
+from backend.orchestration.reranker import initialize_reranker
 from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.runtime_boundary import AgentRuntimeBoundary
 from backend.orchestration.runtime_policy import validate_top_k
 from backend.orchestration.structured_csv_runtime import build_csv_runtime
-from backend.orchestration.code_interpreter import CodeInterpreterSandbox
-from backend.orchestration.graph_rag import GraphRAGSystem
-from backend.orchestration.reranker import initialize_reranker
-from backend.llm_loader import load_llm
-from backend.ai_models import AIModelTypes
 
 
 class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
@@ -42,25 +42,24 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
         self.reranker = self._build_reranker_runtime()
         self.graph_rag_system = self._build_graph_rag_runtime()
         self.code_interpreter = self._build_code_interpreter_runtime()
-        if self._csv_is_configured():
-            self.csv_engine = self._build_structured_csv_engine()
-        else:
-            self.csv_engine = None
+        self.csv_engine = self._build_structured_csv_engine() if self._csv_is_configured() else None
         self.agent = build_agent(self)
 
     def _build_reranker_runtime(self) -> Any:
-        rerank_llm = load_llm(
-            model=AIModelTypes.GPT41_MINI,
-            index_name=self.index_name,
-            use_azure=True,
-            callback_manager=self.callback_manager,
-        ) if self.enable_reranker else None
+        rerank_llm = None
+        if self.enable_reranker:
+            rerank_llm = load_llm(
+                model=AIModelTypes.GPT41_MINI,
+                index_name=self.index_name,
+                use_azure=True,
+                callback_manager=self.callback_manager,
+            )
         return build_reranker(
             enabled=self.enable_reranker,
             llm=rerank_llm,
             top_n=min(5, self.similarity_top_k),
             initialize=initialize_reranker,
-            logger=__import__("backend.orchestration.agentic_ai_system_upgraded", fromlist=["logger"]).logger,
+            logger=logger,
         )
 
     def _build_graph_rag_runtime(self) -> Any:
@@ -69,14 +68,14 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
             llm=self.llm,
             embed_model=self.embed,
             initialize=GraphRAGSystem,
-            logger=__import__("backend.orchestration.agentic_ai_system_upgraded", fromlist=["logger"]).logger,
+            logger=logger,
         )
 
     def _build_code_interpreter_runtime(self) -> Any:
         return build_code_interpreter(
             enabled=self.enable_coding_assistant,
             initialize=CodeInterpreterSandbox,
-            logger=__import__("backend.orchestration.agentic_ai_system_upgraded", fromlist=["logger"]).logger,
+            logger=logger,
         )
 
     def _build_structured_csv_engine(self) -> Any:
