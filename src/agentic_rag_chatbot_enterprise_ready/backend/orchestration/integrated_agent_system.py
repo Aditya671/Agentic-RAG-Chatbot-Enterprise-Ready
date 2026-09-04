@@ -16,6 +16,7 @@ from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.runtime_boundary import AgentRuntimeBoundary
 from backend.orchestration.runtime_policy import validate_top_k
 from backend.orchestration.structured_csv_runtime import build_csv_runtime
+from backend.reliability import AgentObservability, Evidence
 
 
 class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
@@ -24,6 +25,7 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         similarity_top_k = validate_top_k(kwargs.get("similarity_top_k", 20))
         self.runtime_boundary = AgentRuntimeBoundary(RetrievalConfig(top_k=similarity_top_k))
+        self.observability = AgentObservability()
         super().__init__(*args, **kwargs)
         self._refresh_runtime_boundary()
         self._rebuild_converged_runtime()
@@ -132,6 +134,39 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
 
     def get_response_contract(self, response_block: Any) -> AgentResponse:
         return self.runtime_boundary.response(response_block, self.get_retriever_metadata(response_block))
+
+    async def run_agent_async(self, question: str) -> Any:
+        """Execute the agent with a vendor-neutral trace and first-class evidence."""
+        with self.observability.run(
+            attributes={
+                "index_name": self.index_name,
+                "model": self.selected_model.value,
+                "top_k": self.similarity_top_k,
+                "reranker_enabled": self.enable_reranker,
+                "graph_rag_enabled": self.enable_graph_rag,
+            }
+        ) as trace:
+            with self.observability.phase(trace, "agent.execute", "execution"):
+                response = await super().run_agent_async(question)
+            with self.observability.phase(trace, "evidence.capture", "evidence"):
+                for source in self.get_retriever_metadata(response):
+                    if not isinstance(source, dict):
+                        continue
+                    source_id = str(source.get("id") or source.get("source") or source.get("file_name") or "unknown")
+                    locator = source.get("locator") or source.get("page") or source.get("url")
+                    self.observability.record_evidence(
+                        trace,
+                        Evidence(
+                            source_id=source_id,
+                            source_type=str(source.get("type") or "retrieval"),
+                            locator=str(locator) if locator is not None else None,
+                            relevance=float(source["score"]) if isinstance(source.get("score"), (int, float)) else None,
+                            metadata={k: v for k, v in source.items() if k not in {"content", "excerpt"}},
+                        ),
+                        operation="retrieval",
+                        provider="azure_ai_search",
+                    )
+            return response
 
     async def get_response(self, question: str) -> dict[str, Any]:
         response = self.get_response_contract(await self.run_agent_async(question))
