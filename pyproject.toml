@@ -44,6 +44,7 @@ dev = [
   "pytest-asyncio>=1.2.0,<2",
   "ruff>=0.12.0,<1",
   "mypy>=1.17.0,<2",
+  "pyright>=1.1.400,<2",
   "build>=1.3.0,<2",
 ]
 
@@ -51,7 +52,7 @@ dev = [
 agentic-rag = "agentic_rag_chatbot_enterprise_ready.cli:cli"
 
 [build-system]
-requires = ["setuptools>=78,<81"]
+requires = ["setuptools>=78,<81]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
