@@ -4,7 +4,7 @@
 
 Phase 18 introduces a provider-facing factory boundary for the runtime's optional components: reranking, GraphRAG, and isolated code execution.
 
-The boundary is intentionally small and dependency-aware:
+The boundary is intentionally small:
 
 `Runtime Orchestration → Runtime Component Factories → Provider Components`
 
@@ -14,13 +14,14 @@ The boundary is intentionally small and dependency-aware:
 - Disabled components return `None` without constructing provider clients.
 - Reranker depth remains bounded by the active retrieval depth and the existing maximum of five candidates.
 - Provider initialization failures retain the existing resilient behavior by returning `None`.
-- Dependency-isolated tests cover disabled components, GraphRAG argument forwarding, and failure handling.
+- The maintained converged runtime now delegates optional component construction through the factories.
+- Dependency-isolated tests cover disabled components, provider argument forwarding, and failure handling.
 
 ### Migration intent
 
-The large `agentic_ai_system_upgraded.py` compatibility implementation still contains the historical private builders. They are not removed in this phase because they are part of the compatibility inheritance source.
+The large `agentic_ai_system_upgraded.py` compatibility implementation still contains historical private builders. They remain because that module is still the inheritance/compatibility source. The maintained runtime no longer needs to use those builders for optional component refreshes.
 
-The maintained runtime will converge onto these factories in the next step, after which the legacy private builders can be reduced to compatibility-only implementations and eventually retired.
+This creates a clean path for a later compatibility-wrapper reduction without changing the canonical application surface.
 
 ## Validation
 
