@@ -12,6 +12,11 @@ from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.structured_query import StructuredQueryEngine
 
 
+_PROTECTED_RETRIEVAL_KWARGS = frozenset(
+    {"similarity_top_k", "vector_store_query_mode"}
+)
+
+
 def resolve_query_mode(query_mode: str) -> Any:
     """Resolve an application query-mode name at the LlamaIndex boundary."""
     from llama_index.core.vector_stores.types import VectorStoreQueryMode
@@ -30,6 +35,15 @@ def resolve_query_mode(query_mode: str) -> Any:
         raise ValueError(f"Unsupported retrieval query mode: {query_mode!r}") from exc
 
 
+def _merge_provider_kwargs(**kwargs: Any) -> dict[str, Any]:
+    """Reject provider kwargs that would bypass validated retrieval policy."""
+    protected = _PROTECTED_RETRIEVAL_KWARGS.intersection(kwargs)
+    if protected:
+        names = ", ".join(sorted(protected))
+        raise ValueError(f"Cannot override retrieval policy kwargs: {names}")
+    return dict(kwargs)
+
+
 def build_retriever(index: Any, retrieval: RetrievalConfig, **kwargs: Any) -> Any:
     """Build a LlamaIndex retriever from validated application retrieval policy."""
     if index is None:
@@ -37,7 +51,7 @@ def build_retriever(index: Any, retrieval: RetrievalConfig, **kwargs: Any) -> An
 
     provider_kwargs = retrieval.as_kwargs()
     provider_kwargs["vector_store_query_mode"] = resolve_query_mode(retrieval.query_mode)
-    provider_kwargs.update(kwargs)
+    provider_kwargs.update(_merge_provider_kwargs(**kwargs))
     return index.as_retriever(**provider_kwargs)
 
 

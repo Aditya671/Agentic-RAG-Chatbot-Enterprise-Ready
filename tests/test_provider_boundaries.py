@@ -43,6 +43,19 @@ def test_build_retriever_preserves_provider_specific_overrides():
     assert result["node_postprocessors"] == ["reranker"]
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"similarity_top_k": 99},
+        {"vector_store_query_mode": "default"},
+        {"similarity_top_k": 99, "vector_store_query_mode": "default"},
+    ],
+)
+def test_build_retriever_rejects_policy_overrides(kwargs):
+    with pytest.raises(ValueError, match="Cannot override retrieval policy kwargs"):
+        build_retriever(FakeIndex(), RetrievalConfig(top_k=7), **kwargs)
+
+
 def test_resolve_query_mode_rejects_unknown_values():
     with pytest.raises(ValueError, match="Unsupported retrieval query mode"):
         resolve_query_mode("unsupported")
