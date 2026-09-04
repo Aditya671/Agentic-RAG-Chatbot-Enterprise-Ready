@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.22] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.tasks` to the canonical Celery uploaded-file indexing implementation.
+- Reduced `tasks_upgraded.py` to a compatibility-only re-export.
+- Preserved the public `tasks.index_files` task name and worker-local indexer construction.
+- Preserved JSON serialization, started-state tracking, configurable time limits, validation, and explicit async execution boundary.
+- Intentionally retained the no-retry/no-late-ack policy until `index_uploaded_files` idempotency is established.
+- Moved maintained Celery regression coverage to the top-level `tests/` suite.
+- Removed the migration-era Celery test and upgrade report from `src/`.
+
+---
+
 ## [0.2.21] - 2026-09-04
 
 ### Changed
