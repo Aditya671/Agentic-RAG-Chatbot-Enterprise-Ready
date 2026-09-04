@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11] - 2026-09-04
+
+### Removed
+
+- Removed E2B and remote sandbox code execution from the application runtime.
+- Removed the coding-assistant agent tool and related runtime wiring.
+- Removed obsolete E2B implementation, upgrade-report, and regression-test files.
+- Retained only an explicit compatibility placeholder that rejects attempts to instantiate the removed sandbox capability.
+
+### Changed
+
+- Simplified the agent prompt/tool surface so arbitrary Python execution is no longer advertised or exposed.
+- Defined retrieval, uploaded-file indexing, internet search, GraphRAG, and structured CSV analysis as the supported agent capabilities.
+
+---
+
 ## [0.2.10] - 2026-09-04
 
 ### Changed
@@ -21,26 +37,5 @@ All notable changes to this project will be documented in this file. This projec
 - Removed the duplicate legacy upload-indexer implementation from the maintained import surface.
 - Preserved the public `backend.user_uploaded_file_indexer` compatibility path.
 - Added regression coverage preventing the legacy surface from reintroducing a second implementation.
-
----
-
-## [0.2.8] - 2026-09-04
-
-### Changed
-
-- Added a provider-neutral runtime component boundary for optional reranking, GraphRAG, and code execution.
-- Preserved fail-open behavior when optional providers cannot initialize.
-- Added dependency-isolated regression coverage for optional component construction.
-
----
-
-## [0.2.7] - 2026-09-04
-
-### Changed
-
-- Extracted structured CSV prompt construction and provider invocation into a dedicated runtime boundary.
-- Made the maintained converged runtime delegate CSV engine construction instead of assembling provider prompts inline.
-- Added dependency-light regression coverage for the structured CSV runtime boundary.
-- Kept the legacy upgraded runtime compatible while the maintained path owns the new boundary.
 
 ---
