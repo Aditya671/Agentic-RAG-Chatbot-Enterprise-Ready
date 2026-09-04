@@ -32,6 +32,7 @@ target-version = "py312"
 exclude = [
   "*_upgraded.py",
   "old.py",
+  "**/test_*.py",
   "src/agentic_rag_chatbot_enterprise_ready/backend/integrations/**",
   "src/agentic_rag_chatbot_enterprise_ready/backend/process_doc/**",
   "src/agentic_rag_chatbot_enterprise_ready/frontend/**",
