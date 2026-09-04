@@ -1,8 +1,9 @@
 """Execution harness for deterministic agent scenarios."""
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Iterable
+from typing import Any
 
 from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
 from .scenario_evaluation import ScenarioEvaluationEngine
@@ -96,19 +97,31 @@ class HarnessEngine:
                 evaluation.retrieval_relevance,
             )
         except Exception as exc:
-            trace.add_event(ExecutionEvent(name="agent.run", phase="execution", status="error", run_id=trace.run_id, attributes={"error_type": type(exc).__name__}))
+            trace.add_event(
+                ExecutionEvent(
+                    name="agent.run",
+                    phase="execution",
+                    status="error",
+                    run_id=trace.run_id,
+                    attributes={"error_type": type(exc).__name__},
+                )
+            )
             trace.finish("error", str(exc))
             if case.expected_outcome == "error":
-                return HarnessResult(case.case_id, True, "error", failures=(), run_id=trace.run_id)
+                return HarnessResult(case.case_id, True, "error", run_id=trace.run_id)
             return HarnessResult(case.case_id, False, "error", failures=(str(exc),), run_id=trace.run_id)
         finally:
             self.store.save(trace)
 
-    async def replay(self, case_id: str, catalog: ScenarioCatalog, executor: Callable[[str], Awaitable[Any]]) -> HarnessResult:
+    async def replay(
+        self, case_id: str, catalog: ScenarioCatalog, executor: Callable[[str], Awaitable[Any]]
+    ) -> HarnessResult:
         """Replay a named scenario using its immutable expectations."""
         return await self.run_case(catalog.get(case_id), executor)
 
-    async def replay_all(self, catalog: ScenarioCatalog, executor: Callable[[str], Awaitable[Any]]) -> tuple[HarnessResult, ...]:
+    async def replay_all(
+        self, catalog: ScenarioCatalog, executor: Callable[[str], Awaitable[Any]]
+    ) -> tuple[HarnessResult, ...]:
         """Replay scenarios in registration order for deterministic regression runs."""
         return tuple(await self.replay(case.case_id, catalog, executor) for case in catalog.cases())
 
