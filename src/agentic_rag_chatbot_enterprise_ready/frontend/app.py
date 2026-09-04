@@ -44,7 +44,6 @@ DEFAULT_SETTINGS = {
     "select_response_mode": "low",
     "set_model_top_k": 20,
     "set_creativity_level": 0.1,
-    "enable_coding_assistant": False,
     "enable_reranker": True,
     "enable_graph_rag": False,
 }
@@ -80,7 +79,6 @@ def _normalize_settings(settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     )
 
     for key in (
-        "enable_coding_assistant",
         "enable_reranker",
         "enable_graph_rag",
     ):
@@ -140,13 +138,6 @@ def app_default_setting(**overrides):
             description=(
                 "Lower values favor consistency; higher values allow more variation."
             ),
-        ),
-        Switch(
-            id="enable_coding_assistant",
-            label="Enable Coding Assistant",
-            initial=settings["enable_coding_assistant"],
-            tooltip="Enable or disable the coding assistant",
-            description="Toggles coding-assistant availability.",
         ),
         Switch(
             id="enable_reranker",
@@ -353,7 +344,6 @@ def _build_agent(settings: Dict[str, Any], chat_history: list, blob_context: dic
         upload_root_dir=tempfile.mkdtemp(prefix="llama_index_"),
         conversation_thread=chat_history,
         blob_bytes=blob_context["bytes"],
-        enable_coding_assistant=settings["enable_coding_assistant"],
         enable_reranker=settings["enable_reranker"],
         enable_graph_rag=settings["enable_graph_rag"],
     )
@@ -368,9 +358,6 @@ def _apply_agent_settings(agent, settings: Dict[str, Any]) -> None:
     agent.set_reasoning_effect(reasoning_effect=settings["select_response_mode"])
     agent.set_similarity_top_k(similarity_top_k=settings["set_model_top_k"])
     agent.set_index_name(index_name=settings["select_index"])
-    agent.set_coding_assistant(
-        enable_coding_assistant=settings["enable_coding_assistant"]
-    )
     agent.set_reranker(enable_reranker=settings["enable_reranker"])
     agent.set_graph_rag(enable_graph_rag=settings["enable_graph_rag"])
 
