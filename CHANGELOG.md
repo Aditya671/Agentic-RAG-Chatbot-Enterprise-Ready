@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.12] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.orchestration.llm_models` to the canonical model registry.
+- Added GPT-5.6 as an opt-in supported model without changing the GPT-5.1 application default.
+- Separated model context-window limits from maximum output-token limits.
+- Added explicit reasoning capability metadata, normalization, accessors, and validation.
+- Moved model-registry regression coverage into the maintained top-level test suite.
+- Removed the duplicate `llm_models_upgraded.py` implementation and its migration-era test/report.
+
+---
+
 ## [0.2.11] - 2026-09-04
 
 ### Removed
