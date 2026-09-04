@@ -1,5 +1,6 @@
 """Agent orchestration boundaries and provider integrations."""
 
+from backend.orchestration.agent_builder import build_agent
 from backend.orchestration.execution_contract import AgentResponse
 from backend.orchestration.integrated_agent_system import IntegratedAsyncAgenticAiSystem
 from backend.orchestration.provider_boundaries import (
@@ -17,6 +18,7 @@ __all__ = [
     "AgentRuntimeBoundary",
     "IntegratedAsyncAgenticAiSystem",
     "RetrievalConfig",
+    "build_agent",
     "build_retriever",
     "build_structured_query_engine",
     "resolve_query_mode",
