@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.10] - 2026-09-04
+
+### Changed
+
+- Made `backend.orchestration.llm_loader` the canonical implementation surface for LLM and embedding loading.
+- Reduced `llm_loader_upgraded.py` to a compatibility re-export instead of a second implementation.
+- Preserved Azure OpenAI, Microsoft Entra ID, API-key, Key Vault, and non-Azure OpenAI loading behavior.
+- Added a regression guard preventing the upgraded loader from becoming a second implementation surface.
+
+---
+
 ## [0.2.9] - 2026-09-04
 
 ### Changed
