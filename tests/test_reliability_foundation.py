@@ -1,6 +1,6 @@
 from agentic_rag_chatbot_enterprise_ready.backend.reliability import (
     AgentObservability, Evidence, HarnessCase, HarnessEngine, InMemoryReliabilityStore,
-    MonitoringEngine, RetrospectiveEngine,
+    MonitoringEngine, RetrospectiveEngine, ScenarioCatalog,
 )
 
 
@@ -44,6 +44,17 @@ async def test_harness_accepts_expected_error():
 
     result = await harness.run_case(HarnessCase("outage", "question", expected_outcome="error"), fail)
     assert result.passed is True
+
+
+async def test_scenario_catalog_replays_in_registration_order():
+    catalog = ScenarioCatalog([
+        HarnessCase("first", "one", expected_text_contains=("one",)),
+        HarnessCase("second", "two", expected_text_contains=("two",)),
+    ])
+    harness = HarnessEngine()
+    results = await harness.replay_all(catalog, _answer)
+    assert [result.case_id for result in results] == ["first", "second"]
+    assert all(result.passed for result in results)
 
 
 def test_retrospective_and_monitoring_are_explainable():
