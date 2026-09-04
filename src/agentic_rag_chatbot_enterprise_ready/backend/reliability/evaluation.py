@@ -1,9 +1,10 @@
 """Deterministic evaluation metrics over recorded reliability traces."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from statistics import mean
-from typing import Iterable
 
 from .contracts import ExecutionTrace
 
@@ -48,8 +49,6 @@ class EvaluationEngine:
     @staticmethod
     def _duration_ms(trace: ExecutionTrace) -> float:
         """Return duration using the trace timestamps, or zero when unparsable."""
-        from datetime import datetime
-
         try:
             started = datetime.fromisoformat(trace.started_at.replace("Z", "+00:00"))
             finished = datetime.fromisoformat(trace.finished_at.replace("Z", "+00:00"))
