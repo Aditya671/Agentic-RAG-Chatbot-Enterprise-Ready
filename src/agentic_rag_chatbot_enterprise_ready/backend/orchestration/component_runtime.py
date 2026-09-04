@@ -22,3 +22,10 @@ def build_graph_rag(*, enabled: bool, llm: Any, embed_model: Any, initialize: Ca
     except Exception:
         logger.exception("[AgenticAi] GraphRAG initialization failed; disabling it")
         return None
+
+
+def build_code_interpreter(*, enabled: bool, initialize: Callable[[], Any], logger: Any) -> None:
+    """Retained only as a compatibility no-op; arbitrary code execution is removed."""
+    if enabled:
+        logger.warning("[AgenticAi] Code execution was requested but is no longer supported")
+    return None
