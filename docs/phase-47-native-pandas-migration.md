@@ -37,7 +37,7 @@ The maintained runtime now:
 
 ## Dependency reconciliation
 
-The same CI run that exposed the pandas conflict also exposed an independent Azure Search SDK conflict: `llama-index-vector-stores-azureaisearch==0.5.0` requires `azure-search-documents<12`. The project therefore pins `azure-search-documents==11.6.0`, which is a stable release in that compatible range. citeturn6search0turn6search2
+The same CI run that exposed the pandas conflict also exposed an independent Azure Search SDK conflict: `llama-index-vector-stores-azureaisearch==0.5.0` requires `azure-search-documents<12`. The project therefore pins `azure-search-documents==11.6.0`, a stable release in that compatible range.
 
 ## Verification boundary
 
