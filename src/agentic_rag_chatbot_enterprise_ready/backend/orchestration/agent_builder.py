@@ -6,19 +6,17 @@ from typing import Any
 
 from llama_index.core.agent.workflow import FunctionAgent
 
-from backend.orchestration.provider_boundaries import build_retriever
 from backend.orchestration.tool_factory import build_function_tool, build_retriever_tool
 from backend.prompts import AGENTIC_AI_SYSTEM_PROMPT
 
 
 def build_agent(system: Any) -> FunctionAgent:
     """Build the integrated agent from application policy and supported tools."""
-    retrieval = system.runtime_boundary.retrieval
     retriever_kwargs: dict[str, Any] = {}
     if system.reranker:
         retriever_kwargs["node_postprocessors"] = [system.reranker]
 
-    retriever = build_retriever(system.index, retrieval, **retriever_kwargs)
+    retriever = system.build_provider_retriever(**retriever_kwargs)
 
     tools = [
         build_retriever_tool(
