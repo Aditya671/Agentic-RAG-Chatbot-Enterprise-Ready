@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import sys
-import types
-
+import pandas as pd
 import pytest
 
 from backend.orchestration.provider_boundaries import (
@@ -25,7 +23,6 @@ class FakeIndex:
 def test_build_retriever_translates_policy_at_provider_edge():
     index = FakeIndex()
     result = build_retriever(index, RetrievalConfig(top_k=13))
-
     assert result["similarity_top_k"] == 13
     assert result["vector_store_query_mode"].value == "hybrid"
     assert index.kwargs == result
@@ -33,12 +30,7 @@ def test_build_retriever_translates_policy_at_provider_edge():
 
 def test_build_retriever_preserves_provider_specific_overrides():
     index = FakeIndex()
-    result = build_retriever(
-        index,
-        RetrievalConfig(top_k=7),
-        node_postprocessors=["reranker"],
-    )
-
+    result = build_retriever(index, RetrievalConfig(top_k=7), node_postprocessors=["reranker"])
     assert result["similarity_top_k"] == 7
     assert result["node_postprocessors"] == ["reranker"]
 
@@ -67,18 +59,8 @@ def test_resolve_query_mode_rejects_unknown_values():
         resolve_query_mode("unsupported")
 
 
-def test_structured_factory_keeps_engine_dependency_behind_adapter(monkeypatch):
-    fake_module = types.ModuleType("llama_index.experimental.query_engine.pandas")
-
-    class FakePandasQueryEngine:
-        def __init__(self, *, df, **kwargs):
-            self.df = df
-            self.kwargs = kwargs
-
-    fake_module.PandasQueryEngine = FakePandasQueryEngine
-    monkeypatch.setitem(sys.modules, "llama_index.experimental.query_engine.pandas", fake_module)
-
-    engine = build_structured_query_engine([1, 2], engine_kwargs={"llm": "fake"})
-
-    assert engine.raw_engine.df == [1, 2]
-    assert engine.raw_engine.kwargs == {"llm": "fake"}
+def test_structured_factory_builds_native_pandas_engine():
+    dataframe = pd.DataFrame({"asset": ["A", "B"], "noi": [100, 200]})
+    engine = build_structured_query_engine(dataframe)
+    assert engine.dataframe.equals(dataframe)
+    assert engine.raw_engine is engine

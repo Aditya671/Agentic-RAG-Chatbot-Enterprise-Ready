@@ -19,18 +19,18 @@ prevents provider enums from leaking into higher-level policy code.
 
 ### Structured data
 
-`build_structured_query_engine()` exposes the existing `StructuredQueryEngine`
-adapter rather than allowing new application code to import
-`PandasQueryEngine` directly. The experimental dependency therefore remains
-isolated to one compatibility adapter.
+`build_structured_query_engine()` exposes the maintained `StructuredQueryEngine`
+implementation. It uses pandas for deterministic dataframe execution and an
+LLM only to produce a validated JSON operation plan. No generated Python is
+evaluated and no experimental LlamaIndex query package is required.
 
-The existing `IntegratedAsyncAgenticAiSystem` now exposes both provider-edge
-factories while retaining the historical agent API. This is an incremental
-migration seam: the large compatibility implementation is not duplicated.
+The `IntegratedAsyncAgenticAiSystem` retains the historical agent API while the
+structured-data provider boundary remains independently testable.
 
 ## Validation
 
-Provider-boundary tests use a fake index and a mocked structured-query engine.
+Provider-boundary tests use a fake index and an in-memory pandas dataframe.
 They verify top-k propagation, semantic-hybrid mode translation, provider
-option preservation, invalid-mode rejection, and structured-query dependency
-isolation without Azure services or model credentials.
+option preservation, invalid-mode rejection, native structured-query
+construction, and deterministic execution without Azure services or model
+credentials.
