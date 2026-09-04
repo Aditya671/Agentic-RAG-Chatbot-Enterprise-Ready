@@ -6,7 +6,8 @@ import logging
 from typing import Any
 
 try:
-    from llama_index.core.schema import Document, NodeRelationship, TextNode
+    from llama_index.core import Document
+    from llama_index.core.schema import NodeRelationship, TextNode
     LLAMA_INDEX_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     LLAMA_INDEX_AVAILABLE = False

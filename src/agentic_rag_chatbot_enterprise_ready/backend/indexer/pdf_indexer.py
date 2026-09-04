@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from llama_index.core.schema import Document
+from llama_index.core import Document
 
 from .llama_indexer import (
     CHUNK_OVERLAP,
