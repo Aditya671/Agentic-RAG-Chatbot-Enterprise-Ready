@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import boto3
+from boto3.session import Session
 from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
@@ -90,10 +91,10 @@ class AWSCredentialManager:
         return value
 
     @staticmethod
-    def get_session() -> boto3.session.Session:
+    def get_session() -> Session:
         """Resolve an AWS session through Boto3's standard credential chain."""
         try:
-            session = boto3.session.Session()
+            session = Session()
             credentials = session.get_credentials()
         except (NoCredentialsError, PartialCredentialsError) as exc:
             raise AWSCredentialError(
