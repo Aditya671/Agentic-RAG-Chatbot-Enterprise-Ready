@@ -56,6 +56,12 @@ def test_build_retriever_rejects_policy_overrides(kwargs):
         build_retriever(FakeIndex(), RetrievalConfig(top_k=7), **kwargs)
 
 
+@pytest.mark.parametrize("value", [None, 1, True, "", "   "])
+def test_resolve_query_mode_rejects_invalid_input_types(value):
+    with pytest.raises(ValueError, match="query_mode"):
+        resolve_query_mode(value)
+
+
 def test_resolve_query_mode_rejects_unknown_values():
     with pytest.raises(ValueError, match="Unsupported retrieval query mode"):
         resolve_query_mode("unsupported")
