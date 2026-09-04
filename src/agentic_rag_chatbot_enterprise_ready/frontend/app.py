@@ -1,5 +1,3 @@
-from __future__
-
 import ast
 import asyncio
 import contextlib
