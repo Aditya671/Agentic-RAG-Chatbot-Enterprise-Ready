@@ -4,7 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Iterable
 
-from .contracts import ExecutionEvent, ExecutionTrace
+from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
+from .scenario_evaluation import ScenarioEvaluationEngine
 from .store import InMemoryReliabilityStore
 
 
@@ -14,6 +15,8 @@ class HarnessCase:
     question: str
     expected_text_contains: tuple[str, ...] = ()
     expected_outcome: str = "success"
+    expected_evidence_source_ids: tuple[str, ...] = ()
+    min_evidence_relevance: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -25,6 +28,8 @@ class HarnessResult:
     response_text: str = ""
     failures: tuple[str, ...] = ()
     run_id: str = ""
+    grounding_coverage: float = 0.0
+    retrieval_relevance: float = 0.0
 
 
 class ScenarioCatalog:
@@ -72,17 +77,24 @@ class HarnessEngine:
         try:
             raw = await executor(case.question)
             response_text = self._extract_text(raw)
-            failures = tuple(
-                f"response missing expected text: {expected!r}"
-                for expected in case.expected_text_contains
-                if expected.casefold() not in response_text.casefold()
-            )
+            self._record_evidence(trace, raw)
+            evaluation = ScenarioEvaluationEngine.evaluate(case, trace, response_text)
+            failures = evaluation.failures
             outcome = "success" if not failures else "assertion_failed"
             if case.expected_outcome != outcome:
                 failures += (f"expected outcome {case.expected_outcome!r}, got {outcome!r}",)
             trace.add_event(ExecutionEvent(name="agent.run", phase="execution", status=outcome, run_id=trace.run_id))
             trace.finish("success" if not failures else "failure")
-            return HarnessResult(case.case_id, not failures, outcome, response_text, failures, trace.run_id)
+            return HarnessResult(
+                case.case_id,
+                not failures,
+                outcome,
+                response_text,
+                failures,
+                trace.run_id,
+                evaluation.grounding_coverage,
+                evaluation.retrieval_relevance,
+            )
         except Exception as exc:
             trace.add_event(ExecutionEvent(name="agent.run", phase="execution", status="error", run_id=trace.run_id, attributes={"error_type": type(exc).__name__}))
             trace.finish("error", str(exc))
@@ -113,3 +125,23 @@ class HarnessEngine:
             if result is not None:
                 return str(result)
         return str(value)
+
+    @staticmethod
+    def _record_evidence(trace: ExecutionTrace, value: Any) -> None:
+        """Accept explicit evidence from deterministic executors without parsing prose."""
+        raw_evidence = value.get("evidence", ()) if isinstance(value, dict) else getattr(value, "evidence", ())
+        for item in raw_evidence or ():
+            if isinstance(item, EvidenceRecord):
+                trace.add_evidence(item)
+                continue
+            if not isinstance(item, Evidence):
+                raise TypeError("executor evidence must contain Evidence or EvidenceRecord instances")
+            trace.add_evidence(
+                EvidenceRecord(
+                    item,
+                    ProvenanceRecord(
+                        record_id=f"prov-{item.source_id}-{len(trace.evidence) + 1}",
+                        operation="retrieval",
+                    ),
+                )
+            )
