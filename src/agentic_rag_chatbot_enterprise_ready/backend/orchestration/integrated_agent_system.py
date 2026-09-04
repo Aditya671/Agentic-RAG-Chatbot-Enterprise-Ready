@@ -1,10 +1,7 @@
 """Converged runtime integration for the compatibility agent."""
 from __future__ import annotations
 
-import json
 from typing import Any
-
-from llama_index.core.prompts import PromptTemplate
 
 from backend.orchestration.agent_builder import build_agent
 from backend.orchestration.agentic_ai_system_upgraded import AsyncAgenticAiSystem
@@ -13,11 +10,7 @@ from backend.orchestration.provider_boundaries import build_structured_query_eng
 from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.runtime_boundary import AgentRuntimeBoundary
 from backend.orchestration.runtime_policy import validate_top_k
-from backend.prompts import (
-    AGENTIC_PANDAS_QUERY_ENGINE_INSTRUCTION_PROMPT,
-    AGENTIC_PANDAS_QUERY_ENGINE_PANDAS_PROMPT,
-    AGENTIC_PANDAS_QUERY_ENGINE_RESPONSE_SYNTHESIS_PROMPT,
-)
+from backend.orchestration.structured_csv_runtime import build_csv_runtime
 
 
 class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
@@ -25,16 +18,13 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         similarity_top_k = validate_top_k(kwargs.get("similarity_top_k", 20))
-        self.runtime_boundary = AgentRuntimeBoundary(
-            RetrievalConfig(top_k=similarity_top_k)
-        )
+        self.runtime_boundary = AgentRuntimeBoundary(RetrievalConfig(top_k=similarity_top_k))
         super().__init__(*args, **kwargs)
         self._refresh_runtime_boundary()
         self._rebuild_converged_runtime()
 
     @staticmethod
     def _validate_top_k(value: int) -> int:
-        """Expose the shared retrieval-policy validator on the runtime surface."""
         return validate_top_k(value)
 
     def _refresh_runtime_boundary(self) -> None:
@@ -43,7 +33,6 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
         )
 
     def _rebuild_converged_runtime(self) -> None:
-        """Synchronize provider-facing agent and structured-query state."""
         if self._csv_is_configured():
             self.csv_engine = self._build_structured_csv_engine()
         else:
@@ -51,44 +40,12 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
         self.agent = build_agent(self)
 
     def _build_structured_csv_engine(self) -> Any:
-        """Build the CSV engine through the stable structured-query adapter."""
-        df, meta = self.load_csv_file(
-            self.blob_bytes["bytes"],
-            self.blob_bytes.get("metadata", {}),
-        )
-        column_info = (
-            f"Columns ({len(df.columns)} total): {', '.join(df.columns.tolist())}\n"
-            f"Data types: {dict(df.dtypes)}\n"
-            f"DataFrame shape: {df.shape[0]} rows, {df.shape[1]} columns"
-        )
-        df_info = f"{df.head(5).to_string()}\n{column_info}"
-        metadata_str = json.dumps(meta, default=str) if isinstance(meta, dict) else str(meta)
-        pandas_prompt = PromptTemplate(
-            template=AGENTIC_PANDAS_QUERY_ENGINE_PANDAS_PROMPT,
-            metadata=meta if isinstance(meta, dict) else {},
-        ).partial_format(
-            df_str=df.head(5).to_string(),
-            metadata_str=metadata_str,
-            column_info=column_info,
-            instruction_str=AGENTIC_PANDAS_QUERY_ENGINE_INSTRUCTION_PROMPT.format(
-                df_info=df_info,
-                metadata_str=metadata_str,
-            ),
-        )
-        response_prompt = PromptTemplate(
-            AGENTIC_PANDAS_QUERY_ENGINE_RESPONSE_SYNTHESIS_PROMPT
-        )
-        return build_structured_query_engine(
-            df,
-            engine_kwargs={
-                "instruction_str": AGENTIC_PANDAS_QUERY_ENGINE_INSTRUCTION_PROMPT.format(
-                    df_info=df_info,
-                    metadata_str=metadata_str,
-                ),
-                "pandas_prompt": pandas_prompt,
-                "response_synthesis_prompt": response_prompt,
-                "llm": self.llm,
-            },
+        """Build CSV querying through the isolated structured runtime boundary."""
+        return build_csv_runtime(
+            csv_bytes=self.blob_bytes["bytes"],
+            metadata=self.blob_bytes.get("metadata", {}),
+            load_csv_file=self.load_csv_file,
+            llm=self.llm,
         )
 
     def set_similarity_top_k(self, similarity_top_k: int) -> None:
@@ -137,9 +94,7 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
         self._rebuild_converged_runtime()
 
     def build_provider_retriever(self, index: Any | None = None, **kwargs: Any) -> Any:
-        """Build a provider retriever using the current validated runtime policy."""
         from backend.orchestration.provider_boundaries import build_retriever
-
         target_index = self.index if index is None else index
         return build_retriever(target_index, self.runtime_boundary.retrieval, **kwargs)
 
@@ -149,7 +104,6 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
         *,
         engine_kwargs: dict[str, Any] | None = None,
     ) -> Any:
-        """Build structured querying through its isolated adapter."""
         return build_structured_query_engine(dataframe, engine_kwargs=engine_kwargs)
 
     def get_response_contract(self, response_block: Any) -> AgentResponse:
@@ -160,10 +114,7 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
 
     async def get_response(self, question: str) -> dict[str, Any]:
         response = self.get_response_contract(await self.run_agent_async(question))
-        return {
-            "response_text": response.response_text,
-            "response_metadata": response.response_metadata,
-        }
+        return {"response_text": response.response_text, "response_metadata": response.response_metadata}
 
     def get_response_async(self, question: str) -> dict[str, Any]:
         response_block = super().get_response_async(question)
@@ -171,10 +122,7 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
             response_block.get("response_text", ""),
             response_block.get("response_metadata", []),
         )
-        return {
-            "response_text": response.response_text,
-            "response_metadata": response.response_metadata,
-        }
+        return {"response_text": response.response_text, "response_metadata": response.response_metadata}
 
     async def collect_response_stream(self, response: Any) -> str:
         return await self.runtime_boundary.collect_stream(self.stream_response(response))
