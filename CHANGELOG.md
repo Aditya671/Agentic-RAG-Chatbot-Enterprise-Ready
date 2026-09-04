@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9] - 2026-09-04
+
+### Changed
+
+- Made the upgraded user-uploaded file indexer the canonical implementation behind the historical import path.
+- Removed the duplicate legacy upload-indexer implementation from the maintained import surface.
+- Preserved the public `backend.user_uploaded_file_indexer` compatibility path.
+- Added regression coverage preventing the legacy surface from reintroducing a second implementation.
+
+---
+
 ## [0.2.8] - 2026-09-04
 
 ### Changed
@@ -22,33 +33,3 @@ All notable changes to this project will be documented in this file. This projec
 - Kept the legacy upgraded runtime compatible while the maintained path owns the new boundary.
 
 ---
-
-## [0.2.6] - 2026-09-04
-
-### Changed
-
-- Extracted `similarity_top_k` validation into a provider-neutral runtime policy boundary.
-- Prevented silent coercion of booleans, strings, floats, and other invalid retrieval settings.
-- Wired the converged runtime to the shared retrieval-policy validator before constructing `RetrievalConfig`.
-- Added dependency-light regression coverage for the retrieval policy.
-
----
-
-## [0.2.5] - 2026-09-04
-
-### Changed
-
-- Ported retained legacy-runtime regression checks into the maintained top-level `tests/` boundary.
-- Removed the dependency of the maintained regression checks on `/mnt/data` or other machine-specific temporary source paths.
-- Documented the remaining compatibility inheritance and the next extraction boundary.
-- Bumped the package version to `0.2.5` for the maintained runtime/test-boundary cleanup.
-
----
-
-## [0.2.4] - 2026-09-04
-
-### Changed
-
-- Removed active runtime coupling to legacy private tool-builder helpers.
-- Added provider-neutral tool factories for function and retriever tools.
-- Preserved legacy private builders for compatibility callers.
