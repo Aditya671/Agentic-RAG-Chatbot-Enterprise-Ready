@@ -34,16 +34,10 @@ from backend.azure_credential_manager import AzureCredentialManager
 from backend.config import config
 from backend.indexer.azure_search_initializer import initialize_index
 from backend.llm_loader import load_embed, load_llm
-from backend.orchestration.code_interpreter import CodeInterpreterSandbox
-from backend.orchestration.component_runtime import (
-    build_code_interpreter,
-    build_graph_rag,
-    build_reranker,
-)
+from backend.orchestration.component_runtime import build_graph_rag, build_reranker
 from backend.orchestration.graph_rag import GraphRAGSystem
 from backend.orchestration.reranker import initialize_reranker
 from backend.prompts import (
-    AGENTIC_AI_CODEX_PROMPT,
     AGENTIC_AI_SYSTEM_PROMPT,
     AGENTIC_PANDAS_QUERY_ENGINE_INSTRUCTION_PROMPT,
     AGENTIC_PANDAS_QUERY_ENGINE_PANDAS_PROMPT,
@@ -66,8 +60,7 @@ class AsyncAgenticAiSystem:
 
     def __init__(self, selected_model=AIModelTypes.GPT51, llm_creativity_level=0.1, similarity_top_k=20,
                  reasoning_effect="low", enable_reranker=True, enable_graph_rag=False, index_name=None,
-                 session_id=None, upload_root_dir=None, conversation_thread=None, blob_bytes=None,
-                 enable_coding_assistant=False) -> None:
+                 session_id=None, upload_root_dir=None, conversation_thread=None, blob_bytes=None) -> None:
         self.env = os.getenv("ENVIRONMENT", "local").strip().lower()
         if self.env in self._LOCAL_ENVIRONMENTS:
             load_dotenv(override=True)
@@ -77,7 +70,6 @@ class AsyncAgenticAiSystem:
         self.reasoning_effect = self._build_reasoning_config(reasoning_effect)
         self.enable_reranker = bool(enable_reranker)
         self.enable_graph_rag = bool(enable_graph_rag)
-        self.enable_coding_assistant = bool(enable_coding_assistant)
         self.index_name = index_name or os.getenv("INDEX_NAME", "aiim")
         self.session_id = session_id or str(uuid.uuid4())
         self.upload_root_dir = upload_root_dir or tempfile.mkdtemp(prefix="llama_index_")
@@ -107,7 +99,6 @@ class AsyncAgenticAiSystem:
             raise ValueError("Failed to initialize vector index")
         self.reranker = self.__build_reranker()
         self.graph_rag_system = self.__build_graph_rag_system()
-        self.code_interpreter = self.__build_code_interpreter()
         self.csv_engine = self.__build_csv_engine() if self._csv_is_configured() else None
         self.local_file_indexer = UserUploadedFileIndexer(root_dir=self.upload_root_dir, index_name=self.index_name,
             model=self.selected_model, memory=self.memory, similarity_top_k=self.similarity_top_k)
@@ -330,11 +321,6 @@ class AsyncAgenticAiSystem:
         self.graph_rag_system = self.__build_graph_rag_system()
         self.agent = self.__build_agent()
 
-    def set_coding_assistant(self, enable_coding_assistant=False):
-        self.enable_coding_assistant = bool(enable_coding_assistant)
-        self.code_interpreter = self.__build_code_interpreter()
-        self.agent = self.__build_agent()
-
     @staticmethod
     async def guardrail_check(user_input):
         if not isinstance(user_input, str):
@@ -408,9 +394,6 @@ class AsyncAgenticAiSystem:
     def __build_graph_rag_system(self):
         return build_graph_rag(enabled=self.enable_graph_rag, llm=self.llm, embed_model=self.embed,
                                initialize=GraphRAGSystem, logger=logger)
-
-    def __build_code_interpreter(self):
-        return build_code_interpreter(enabled=self.enable_coding_assistant, initialize=CodeInterpreterSandbox, logger=logger)
 
     def __dummy_function(self, *args, **kwargs):
         return {"status": "bypassed", "message": "Tool is unavailable."}
@@ -543,11 +526,9 @@ class AsyncAgenticAiSystem:
         ])
         if self.graph_rag_system and getattr(self.graph_rag_system, "index", None):
             agent_tools.append(self.__build_function_tool(self.graph_rag_system.query, "graph_rag_tool", "Query entity relationships and multi-hop knowledge graph facts."))
-        if self.enable_coding_assistant and self.code_interpreter:
-            agent_tools.append(self.__build_function_tool(self.code_interpreter.run_python, "code_interpreter_tool", "Execute Python code in the configured isolated sandbox."))
         if self.csv_engine is not None:
             agent_tools.append(self.__build_function_tool(lambda q: str(self.csv_engine.query(q)), "csv_tool", "Query the configured Salesforce meeting-data CSV."))
-        system_prompt = (AGENTIC_AI_CODEX_PROMPT if self.enable_coding_assistant else AGENTIC_AI_SYSTEM_PROMPT).format(now_str=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+        system_prompt = AGENTIC_AI_SYSTEM_PROMPT.format(now_str=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
         return FunctionAgent(tools=agent_tools, llm=self.llm, system_prompt=system_prompt, verbose=True)
 
     async def run_agent_async(self, question):
@@ -618,8 +599,6 @@ class AsyncAgenticAiSystem:
         return {"response_text": self._extract_response_text(response_block), "response_metadata": self.get_retriever_metadata(response_block)}
 
     def close(self):
-        if self.code_interpreter:
-            self.code_interpreter.close()
         close = getattr(self.credential_manager, "close", None)
         if callable(close):
             close()
