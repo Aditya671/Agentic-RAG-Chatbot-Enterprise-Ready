@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .contracts import ExecutionTrace
-from .harness import HarnessCase
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,11 +20,9 @@ class ScenarioEvaluationEngine:
     """Evaluate explicit scenario expectations without semantic self-judgement."""
 
     @staticmethod
-    def evaluate(
-        case: HarnessCase,
-        trace: ExecutionTrace,
-        response_text: str,
-    ) -> ScenarioEvaluationResult:
+    def evaluate(case, trace: ExecutionTrace, response_text: str) -> ScenarioEvaluationResult:
+        from .harness import HarnessCase
+
         if not isinstance(case, HarnessCase):
             raise TypeError("case must be a HarnessCase")
         if not isinstance(trace, ExecutionTrace):
