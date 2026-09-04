@@ -1,113 +1,113 @@
+"""OpenCV preprocessing helpers for OCR-oriented image cleanup."""
+
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
 
 try:
     import cv2
     import numpy as np
     CV2_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     CV2_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
+
 class CVPreprocessor:
-    """
-    Advanced Computer Vision pre-processing using OpenCV.
-    Provides logic to clean up scanned images (deskewing, noise reduction, binarization)
-    before OCR to dramatically improve text extraction quality.
-    """
-    def __init__(self, debug_mode: bool = False):
+    """Deskew, denoise, and binarize scanned images when OpenCV is available."""
+
+    def __init__(self, debug_mode: bool = False) -> None:
         self.debug_mode = debug_mode
         if not CV2_AVAILABLE:
-            logger.warning("OpenCV (cv2) or Numpy not installed. CV preprocessing will act as a pass-through.")
+            logger.warning("OpenCV/NumPy unavailable; CV preprocessing is disabled.")
 
-    def _get_skew_angle(self, cv_image: np.ndarray) -> float:
-        """Calculates the skew angle of the document in the image."""
-        # Convert to grayscale and apply Gaussian blur
-        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+    @staticmethod
+    def _require_image(image: "np.ndarray") -> None:
+        if not CV2_AVAILABLE:
+            raise RuntimeError("OpenCV is not installed.")
+        if not isinstance(image, np.ndarray) or image.size == 0:
+            raise ValueError("cv_image must be a non-empty NumPy array.")
+        if image.ndim not in {2, 3}:
+            raise ValueError("cv_image must be a 2D grayscale or 3D color image.")
+
+    def _get_skew_angle(self, cv_image: "np.ndarray") -> float:
+        self._require_image(cv_image)
+        gray = cv_image if cv_image.ndim == 2 else cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (9, 9), 0)
-        
-        # Threshold the image
-        thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-        
-        # Apply morphological operations to dilate text blocks
+        thresh = cv2.threshold(
+            blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )[1]
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (30, 5))
-        dilate = cv2.dilate(thresh, kernel, iterations=5)
-        
-        # Find all contours
-        contours, _ = cv2.findContours(dilate, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Find largest contour and surround in min area box
+        dilated = cv2.dilate(thresh, kernel, iterations=5)
+        contours, _ = cv2.findContours(
+            dilated, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE
+        )
         if not contours:
             return 0.0
-            
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)
-        largest_contour = contours[0]
-        min_area_rect = cv2.minAreaRect(largest_contour)
-        
-        angle = min_area_rect[-1]
+
+        largest = max(contours, key=cv2.contourArea)
+        angle = cv2.minAreaRect(largest)[-1]
         if angle < -45:
             angle = -(90 + angle)
         else:
             angle = -angle
-            
-        # Return 0 if the angle is very small to avoid unnecessary rotation artifacts
-        return angle if abs(angle) > 0.5 else 0.0
+        return float(angle) if abs(angle) > 0.5 else 0.0
 
-    def deskew(self, cv_image: np.ndarray, angle: float) -> np.ndarray:
-        """Rotates the image by the given angle to deskew it."""
-        (h, w) = cv_image.shape[:2]
-        center = (w // 2, h // 2)
-        m = cv2.getRotationMatrix2D(center, angle, 1.0)
-        deskewed = cv2.warpAffine(
-            cv_image, m, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE
+    def deskew(self, cv_image: "np.ndarray", angle: float) -> "np.ndarray":
+        self._require_image(cv_image)
+        if not isinstance(angle, (int, float)) or not np.isfinite(angle):
+            raise ValueError("angle must be a finite number.")
+        height, width = cv_image.shape[:2]
+        center = (width / 2.0, height / 2.0)
+        matrix = cv2.getRotationMatrix2D(center, float(angle), 1.0)
+        return cv2.warpAffine(
+            cv_image,
+            matrix,
+            (width, height),
+            flags=cv2.INTER_CUBIC,
+            borderMode=cv2.BORDER_REPLICATE,
         )
-        return deskewed
 
-    def denoise_and_binarize(self, cv_image: np.ndarray) -> np.ndarray:
-        """Applies adaptive thresholding and median blur to reduce noise."""
-        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-        
-        # Median blur to remove salt and pepper noise
+    def denoise_and_binarize(self, cv_image: "np.ndarray") -> "np.ndarray":
+        self._require_image(cv_image)
+        gray = cv_image if cv_image.ndim == 2 else cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
         denoised = cv2.medianBlur(gray, 3)
-        
-        # Adaptive Gaussian Thresholding
-        binary = cv2.adaptiveThreshold(
-            denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        return cv2.adaptiveThreshold(
+            denoised,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            11,
+            2,
         )
-        return binary
 
-    def process_image(self, file_path: Path) -> Optional[Path]:
-        """
-        Main entry point for pre-processing an image file.
-        Returns the path to the cleaned image or None if CV is unavailable/failed.
-        """
+    def process_image(self, file_path: Path) -> Path:
+        """Return a cleaned image path, or the original path when unavailable."""
+        if not isinstance(file_path, Path):
+            file_path = Path(file_path)
+        if not file_path.is_file():
+            raise FileNotFoundError(file_path)
         if not CV2_AVAILABLE:
             return file_path
-            
-        logger.info(f"Applying CV Pre-processing to {file_path.name}")
-        
+
         try:
-            image = cv2.imread(str(file_path))
+            image = cv2.imread(str(file_path), cv2.IMREAD_COLOR)
             if image is None:
-                logger.error(f"Failed to load image for pre-processing: {file_path}")
-                return file_path
+                raise ValueError(f"Unable to decode image: {file_path}")
 
-            # Deskewing
             angle = self._get_skew_angle(image)
-            if abs(angle) > 0:
-                logger.debug(f"Deskewing image by {angle:.2f} degrees")
+            if angle:
                 image = self.deskew(image, angle)
+            cleaned = self.denoise_and_binarize(image)
 
-            # Binarization & Denoising
-            clean_image = self.denoise_and_binarize(image)
-
-            # Save the pre-processed image to a temporary path
-            output_path = file_path.with_name(f"cleaned_{file_path.name}")
-            cv2.imwrite(str(output_path), clean_image)
+            output_path = file_path.with_name(
+                f"{file_path.stem}.cleaned{file_path.suffix}"
+            )
+            if not cv2.imwrite(str(output_path), cleaned):
+                raise IOError(f"OpenCV could not write {output_path}")
             return output_path
-            
-        except Exception as e:
-            logger.error(f"CV Pre-processing failed: {e}")
-            return file_path
+        except Exception:
+            logger.exception("CV preprocessing failed for %s", file_path)
+            raise

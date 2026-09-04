@@ -1,94 +1,111 @@
+"""SQLite-backed human-in-the-loop review queue."""
+
+from __future__ import annotations
+
+import json
 import logging
 import sqlite3
-import json
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Any
-from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class HITLQueueManager:
-    """
-    Manages the Human-in-the-Loop review queue backed by SQLite for robust local operation.
-    Documents with low extraction confidence are routed here.
-    """
-    def __init__(self, db_path: str = "hitl_queue.db"):
-        self.db_path = db_path
+    """Persist pending document-review work with explicit state transitions."""
+
+    def __init__(self, db_path: str = "hitl_queue.db") -> None:
+        if not isinstance(db_path, str) or not db_path.strip():
+            raise ValueError("db_path must be a non-empty string.")
+        self.db_path = str(Path(db_path).expanduser())
         self._init_db()
 
-    def _init_db(self):
+    @staticmethod
+    def _now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def _connect(self) -> sqlite3.Connection:
+        path = Path(self.db_path)
+        if path.parent != Path("."):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(self.db_path, timeout=10.0)
+        connection.execute("PRAGMA busy_timeout = 10000")
+        return connection
+
+    def _init_db(self) -> None:
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
+            with self._connect() as conn:
+                conn.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS hitl_queue (
                         id TEXT PRIMARY KEY,
                         file_path TEXT NOT NULL,
                         reason TEXT NOT NULL,
-                        status TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('PENDING', 'RESOLVED')),
                         created_at TEXT NOT NULL,
                         resolved_at TEXT,
                         resolution_data TEXT
                     )
-                """)
-                conn.commit()
-        except Exception as e:
-            logger.error(f"Failed to initialize HITL database: {e}")
+                    """
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_hitl_queue_status_created "
+                    "ON hitl_queue(status, created_at)"
+                )
+        except sqlite3.Error as exc:
+            raise RuntimeError("Failed to initialize HITL database.") from exc
 
     def enqueue(self, file_path: Path, reason: str) -> str:
-        """
-        Adds a document to the manual review queue.
-        """
-        logger.info(f"Enqueuing {file_path.name} to HITL review. Reason: {reason}")
+        if not isinstance(file_path, Path):
+            file_path = Path(file_path)
+        if not reason or not str(reason).strip():
+            raise ValueError("reason is required.")
+
         item_id = str(uuid.uuid4())
-        
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "INSERT INTO hitl_queue (id, file_path, reason, status, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (item_id, str(file_path), reason, "PENDING", datetime.utcnow().isoformat())
+            with self._connect() as conn:
+                conn.execute(
+                    "INSERT INTO hitl_queue "
+                    "(id, file_path, reason, status, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (item_id, str(file_path.resolve()), str(reason), "PENDING", self._now_iso()),
                 )
-                conn.commit()
             return item_id
-        except Exception as e:
-            logger.error(f"Failed to enqueue document: {e}")
-            return ""
-        
-    def get_pending_reviews(self) -> List[Dict[str, Any]]:
-        """
-        Retrieves items pending review.
-        """
+        except sqlite3.Error as exc:
+            logger.exception("Failed to enqueue document %s", file_path)
+            raise RuntimeError("Failed to enqueue HITL review item.") from exc
+
+    def get_pending_reviews(self) -> list[dict[str, Any]]:
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM hitl_queue WHERE status = 'PENDING'")
-                rows = cursor.fetchall()
+                rows = conn.execute(
+                    "SELECT * FROM hitl_queue WHERE status = 'PENDING' "
+                    "ORDER BY created_at ASC"
+                ).fetchall()
                 return [dict(row) for row in rows]
-        except Exception as e:
-            logger.error(f"Failed to fetch pending reviews: {e}")
-            return []
-        
-    def resolve_review(self, item_id: str, corrected_data: Dict[str, Any]) -> bool:
-        """
-        Accepts human corrections, updates status, and potentially re-inserts into pipeline.
-        """
-        logger.info(f"Resolving review for item {item_id}")
+        except sqlite3.Error as exc:
+            logger.exception("Failed to fetch pending reviews")
+            raise RuntimeError("Failed to fetch pending HITL reviews.") from exc
+
+    def resolve_review(self, item_id: str, corrected_data: dict[str, Any]) -> bool:
+        if not isinstance(item_id, str) or not item_id.strip():
+            raise ValueError("item_id is required.")
+        if not isinstance(corrected_data, dict):
+            raise TypeError("corrected_data must be a dictionary.")
+
         try:
             data_json = json.dumps(corrected_data)
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE hitl_queue SET status = 'RESOLVED', resolved_at = ?, resolution_data = ? WHERE id = ?",
-                    (datetime.utcnow().isoformat(), data_json, item_id)
+            with self._connect() as conn:
+                cursor = conn.execute(
+                    "UPDATE hitl_queue SET status = 'RESOLVED', resolved_at = ?, "
+                    "resolution_data = ? WHERE id = ? AND status = 'PENDING'",
+                    (self._now_iso(), data_json, item_id),
                 )
-                if cursor.rowcount == 0:
-                    logger.warning(f"No pending HITL item found with id {item_id}")
+                if cursor.rowcount != 1:
                     return False
-                conn.commit()
             return True
-        except Exception as e:
-            logger.error(f"Failed to resolve review {item_id}: {e}")
-            return False
+        except (sqlite3.Error, TypeError, ValueError) as exc:
+            logger.exception("Failed to resolve review %s", item_id)
+            raise RuntimeError("Failed to resolve HITL review.") from exc

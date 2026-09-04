@@ -22,8 +22,6 @@ logger = logging.getLogger(__name__)
 TASK_NAME = "tasks.index_files"
 DEFAULT_BROKER_URL = "redis://localhost:6379/0"
 DEFAULT_RESULT_BACKEND = "redis://localhost:6379/0"
-TASK_SOFT_TIME_LIMIT = int(os.getenv("CELERY_INDEX_SOFT_TIME_LIMIT", "1800"))
-TASK_TIME_LIMIT = int(os.getenv("CELERY_INDEX_TIME_LIMIT", "2100"))
 
 
 def _load_environment() -> None:
@@ -39,6 +37,21 @@ def _positive_int(value: Any, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError(f"{name} must be a positive integer.")
     return value
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default))
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a positive integer.") from exc
+    return _positive_int(value, name)
+
+
+TASK_SOFT_TIME_LIMIT = _env_positive_int("CELERY_INDEX_SOFT_TIME_LIMIT", 1800)
+TASK_TIME_LIMIT = _env_positive_int("CELERY_INDEX_TIME_LIMIT", 2100)
+if TASK_SOFT_TIME_LIMIT >= TASK_TIME_LIMIT:
+    raise ValueError("CELERY_INDEX_SOFT_TIME_LIMIT must be less than CELERY_INDEX_TIME_LIMIT.")
 
 
 def _validate_task_arguments(
@@ -96,15 +109,8 @@ def index_files_task(
     model: str,
     similarity_top_k: int,
 ) -> Any:
-    """Index uploaded files asynchronously in a worker process.
-
-    Task messages contain only serialization-safe primitives. The indexer is
-    constructed inside the worker because service and memory objects must not
-    cross the Celery message boundary.
-
-    Automatic retries and late acknowledgements remain disabled because the
-    idempotency contract of ``index_uploaded_files`` has not been established.
-    """
+    """Index uploaded files asynchronously inside the worker process."""
+    del self
     _validate_task_arguments(
         file_list=file_list,
         root_dir=root_dir,
