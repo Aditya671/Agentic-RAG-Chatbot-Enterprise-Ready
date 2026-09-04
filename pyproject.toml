@@ -41,3 +41,29 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
+[tool.pyright]
+include = [
+  "app_logger.py",
+  "main.py",
+  "src/agentic_rag_chatbot_enterprise_ready/auth",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/reliability",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/runtime.py",
+  "src/agentic_rag_chatbot_enterprise_ready/cli.py",
+]
+exclude = [
+  "src/agentic_rag_chatbot_enterprise_ready/backend/integrations/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/process_doc/**",
+  "src/agentic_rag_chatbot_enterprise_ready/frontend/**",
+  "src/agentic_rag_chatbot_enterprise_ready/doc_digitization.py",
+]
+ignore = [
+  "src/agentic_rag_chatbot_enterprise_ready/backend/databases/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/tasks.py",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/user_uploaded_file_indexer.py",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/utils/**",
+]
+extraPaths = ["src/agentic_rag_chatbot_enterprise_ready"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
