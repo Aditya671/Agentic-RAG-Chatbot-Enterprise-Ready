@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from backend.orchestration.provider_boundaries import build_structured_query_engine
-from backend.orchestration.prompts import (
-    render_pandas_instruction,
-    render_pandas_query_prompt,
-)
+from backend.orchestration.prompts import render_pandas_instruction, render_pandas_query_prompt
 
 
 def build_csv_runtime(
