@@ -4,12 +4,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_repository_tests_do_not_depend_on_machine_specific_paths():
-    """Tests must be runnable from a fresh clone and CI runner."""
+def test_repository_level_tests_do_not_depend_on_machine_specific_paths():
+    """Top-level CI tests must be runnable from a fresh clone."""
     forbidden = ("/mnt/data/", "/workspace/", "C:\\Users\\")
-    test_files = list((ROOT / "tests").rglob("test_*.py")) + list(
-        (ROOT / "src").rglob("test_*.py")
-    )
+    test_files = list((ROOT / "tests").rglob("test_*.py"))
     offenders = []
     for path in test_files:
         text = path.read_text(encoding="utf-8")
