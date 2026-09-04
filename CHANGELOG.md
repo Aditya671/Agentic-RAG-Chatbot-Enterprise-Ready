@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.24] - 2026-09-04
+
+### Changed
+
+- Re-audited the historical enhanced `*_upgraded.py` implementations against their current runtime counterparts instead of treating the suffix as evidence of duplication.
+- Restored the enhanced Cosmos DB data layer as the maintained implementation, including parameterized queries, partition-safe operations, lifecycle cleanup, and current Chainlit data-layer methods.
+- Restored the enhanced MongoDB data layer using PyMongo's native async client, replacing the older Motor-backed implementation.
+- Reconciled `UploadedFileWrapper` so both file-backed and explicit in-memory upload payloads remain supported without leaking content through `repr()`.
+- Restored the missing `upsert_documents_to_index` compatibility helper required by the PDF ingestion surface.
+- Added regression coverage for the reconciled data-layer, upload-wrapper, and ingestion boundaries.
+- Explicitly classified obsolete code-execution/PandasAI migration artifacts as out of scope rather than reintroducing retired product capabilities.
+
+---
+
 ## [0.2.23] - 2026-09-04
 
 ### Changed
