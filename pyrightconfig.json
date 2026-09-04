@@ -1,0 +1,8 @@
+{
+  "include": ["src/agentic_rag_chatbot_enterprise_ready/backend"],
+  "exclude": ["**/*_upgraded.py", "**/old.py", "**/test_*.py"],
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.12",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none"
+}
