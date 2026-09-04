@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.19"
+version = "0.2.20"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
