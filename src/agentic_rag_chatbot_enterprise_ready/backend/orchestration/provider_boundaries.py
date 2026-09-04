@@ -19,6 +19,9 @@ _PROTECTED_RETRIEVAL_KWARGS = frozenset(
 
 def resolve_query_mode(query_mode: str) -> Any:
     """Resolve an application query-mode name at the LlamaIndex boundary."""
+    if not isinstance(query_mode, str) or not query_mode.strip():
+        raise ValueError("query_mode must be a non-empty string")
+
     from llama_index.core.vector_stores.types import VectorStoreQueryMode
 
     normalized = query_mode.strip().lower()
