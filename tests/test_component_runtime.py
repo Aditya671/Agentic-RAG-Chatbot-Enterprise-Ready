@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from backend.orchestration.code_interpreter import CodeInterpreterSandbox
 from backend.orchestration.component_runtime import (
     build_code_interpreter,
     build_graph_rag,
@@ -9,10 +12,14 @@ from backend.orchestration.component_runtime import (
 
 class _Logger:
     def __init__(self):
-        self.calls = 0
+        self.exception_calls = 0
+        self.warning_calls = 0
 
     def exception(self, *_args, **_kwargs):
-        self.calls += 1
+        self.exception_calls += 1
+
+    def warning(self, *_args, **_kwargs):
+        self.warning_calls += 1
 
 
 def test_disabled_components_do_not_initialize():
@@ -33,7 +40,7 @@ def test_reranker_fail_open_preserves_existing_behavior():
         raise RuntimeError("provider unavailable")
 
     assert build_reranker(enabled=True, llm=object(), top_n=5, initialize=initialize, logger=logger) is None
-    assert logger.calls == 1
+    assert logger.exception_calls == 1
 
 
 def test_graph_rag_passes_provider_inputs():
@@ -48,11 +55,20 @@ def test_graph_rag_passes_provider_inputs():
     assert captured == {"llm": "llm", "embed_model": "embed"}
 
 
-def test_code_interpreter_fail_open_returns_none():
+def test_code_interpreter_request_is_explicitly_rejected_at_compatibility_boundary():
     logger = _Logger()
+    called = []
 
-    def initialize():
-        raise RuntimeError("sandbox unavailable")
+    assert build_code_interpreter(
+        enabled=True,
+        initialize=lambda: called.append(True),
+        logger=logger,
+    ) is None
+    assert called == []
+    assert logger.warning_calls == 1
+    assert logger.exception_calls == 0
 
-    assert build_code_interpreter(enabled=True, initialize=initialize, logger=logger) is None
-    assert logger.calls == 1
+
+def test_legacy_code_interpreter_raises_without_constructing_a_sandbox():
+    with pytest.raises(RuntimeError, match="Code execution is not supported"):
+        CodeInterpreterSandbox()
