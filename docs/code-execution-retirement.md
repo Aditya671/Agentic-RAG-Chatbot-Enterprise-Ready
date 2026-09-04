@@ -16,10 +16,10 @@ Structured CSV analysis must remain a provider-backed query adapter. It must not
 
 ## Compatibility behavior
 
-Historical callers may still encounter the `CodeInterpreterSandbox` compatibility module and the legacy coding-assistant setting on old runtime objects. These surfaces are compatibility artifacts, not supported capabilities. They must not construct a sandbox, expose `run_python`, or add a code-execution tool to the maintained agent registry.
+Historical callers may still encounter the `CodeInterpreterSandbox` compatibility module or the compatibility no-op in `component_runtime.py`. These surfaces are compatibility artifacts, not supported capabilities. They must not construct a sandbox, expose `run_python`, or add a code-execution tool to the maintained agent registry.
 
-New application code must not add a dependency on these compatibility surfaces. Any future removal of the remaining legacy setting should be performed as a dedicated compatibility-breaking cleanup after callers have migrated.
+The canonical runtime no longer carries coding-assistant state, code-interpreter construction, code-execution tool registration, or coding-specific prompt selection. New application code must not add a dependency on the remaining compatibility surfaces.
 
 ## Regression boundary
 
-The repository keeps tests that inspect the maintained agent builder and compatibility implementation for executable behavior. Those tests are intentionally dependency-light: the retirement guarantee must not depend on Azure credentials, a live LLM, or a sandbox service.
+The repository keeps dependency-light tests that inspect the maintained agent builder and canonical runtime for executable behavior, alongside compatibility checks for the retired components. The retirement guarantee must not depend on Azure credentials, a live LLM, or a sandbox service.
