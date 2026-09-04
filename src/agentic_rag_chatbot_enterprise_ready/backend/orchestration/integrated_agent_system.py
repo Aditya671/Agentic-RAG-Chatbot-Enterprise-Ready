@@ -7,8 +7,7 @@ from backend.ai_models import AIModelTypes
 from backend.llm_loader import load_llm
 from backend.orchestration.agent_builder import build_agent
 from backend.orchestration.agentic_ai_system_upgraded import AsyncAgenticAiSystem, logger
-from backend.orchestration.code_interpreter import CodeInterpreterSandbox
-from backend.orchestration.component_runtime import build_code_interpreter, build_graph_rag, build_reranker
+from backend.orchestration.component_runtime import build_graph_rag, build_reranker
 from backend.orchestration.execution_contract import AgentResponse
 from backend.orchestration.graph_rag import GraphRAGSystem
 from backend.orchestration.provider_boundaries import build_retriever, build_structured_query_engine
@@ -23,6 +22,7 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
     """Compatibility agent whose runtime path uses explicit provider seams."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.pop("enable_coding_assistant", None)
         similarity_top_k = validate_top_k(kwargs.get("similarity_top_k", 20))
         self.runtime_boundary = AgentRuntimeBoundary(RetrievalConfig(top_k=similarity_top_k))
         super().__init__(*args, **kwargs)
@@ -41,7 +41,6 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
     def _rebuild_converged_runtime(self) -> None:
         self.reranker = self._build_reranker_runtime()
         self.graph_rag_system = self._build_graph_rag_runtime()
-        self.code_interpreter = self._build_code_interpreter_runtime()
         self.csv_engine = self._build_structured_csv_engine() if self._csv_is_configured() else None
         self.agent = build_agent(self)
 
@@ -68,13 +67,6 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
             llm=self.llm,
             embed_model=self.embed,
             initialize=GraphRAGSystem,
-            logger=logger,
-        )
-
-    def _build_code_interpreter_runtime(self) -> Any:
-        return build_code_interpreter(
-            enabled=self.enable_coding_assistant,
-            initialize=CodeInterpreterSandbox,
             logger=logger,
         )
 
@@ -123,11 +115,6 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
 
     def set_graph_rag(self, enable_graph_rag: bool = False) -> None:
         super().set_graph_rag(enable_graph_rag)
-        self._refresh_runtime_boundary()
-        self._rebuild_converged_runtime()
-
-    def set_coding_assistant(self, enable_coding_assistant: bool = False) -> None:
-        super().set_coding_assistant(enable_coding_assistant)
         self._refresh_runtime_boundary()
         self._rebuild_converged_runtime()
 

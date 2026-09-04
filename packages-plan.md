@@ -1,9 +1,11 @@
-Yes. Based on the current repo, I’d split the PyPI packages into two groups: what you already have, and what I’d add to make the app cleaner and more production-ready.
+# Package Plan
 
-**Already in the project**
+This document captures the package strategy for the enterprise RAG application.
+
+## Runtime packages
+
 - `chainlit`
 - `llama-index`
-- `llama-index-llms-openai`
 - `llama-index-llms-azure-openai`
 - `llama-index-embeddings-azure-openai`
 - `llama-index-vector-stores-azureaisearch`
@@ -13,75 +15,33 @@ Yes. Based on the current repo, I’d split the PyPI packages into two groups: w
 - `azure-cosmos`
 - `azure-search-documents`
 - `azure-ai-projects`
-- `azure-ai-inference`
 - `openai`
-- `langchain`
 - `pandas`
-- `pandasai`
-- `pandasai_openai`
 - `python-dotenv`
-- `nest-asyncio`
 - `requests`
-- `markdown`
-- `pymongo`
-- `PyMuPDF` not `pyMupdf`
-- `xhtml2pdf`
+- `PyMuPDF`
 - `celery`
 - `motor`
-- `docx`
-- `e2b`
+- `pymongo`
 - `boto3`
 - `botocore`
 
-Source: [pyproject.toml](/D:/projects/agentic-rag-chatbot/Agentic-RAG-Chatbot-Azure-Native/pyproject.toml)
+## Development packages
 
-**Packages I recommend adding**
-- `fastapi`
-- `uvicorn`
-- `pydantic`
-- `pydantic-settings`
-- `redis`
-- `python-multipart`
-- `tenacity`
-- `httpx`
-- `ruff`
 - `pytest`
 - `pytest-asyncio`
-- `pytest-cov`
-- `mypy` if you want stricter typing
-- `structlog` if you want cleaner structured logs
-- `opentelemetry-api` and `opentelemetry-sdk` if you want real observability
-- `rich` for better local CLI/debug output
+- `ruff`
+- `mypy`
+- `build`
 
-**Why these help**
-- `fastapi` and `uvicorn` give you a proper API layer if you want the backend separated from Chainlit.
-- `pydantic` and `pydantic-settings` make config and request validation much safer.
-- `redis` is the natural companion to `celery` for broker/result backend.
-- `python-multipart` is useful for file uploads in API routes.
-- `tenacity` is great for retries around Azure/OpenAI/Search calls.
-- `ruff` is the best upgrade for linting/formatting.
-- `pytest-asyncio` and `pytest-cov` make the regression suite more useful.
-- `opentelemetry-*` makes production tracing much easier.
+## Deliberately excluded
 
-**Packages I would especially standardize**
-- `PyMuPDF` as the PDF library name
-- `ruff` instead of maintaining separate `black` and `flake8` flows if you want a simpler toolchain
+The application does **not** include a remote sandbox or arbitrary code-execution SDK. E2B and related code-interpreter packages are intentionally excluded from the runtime dependency set.
 
-**If you want the shortest practical install set**
-- Core app/runtime: `chainlit`, `llama-index`, `fastapi`, `uvicorn`, `pydantic-settings`, `redis`, `tenacity`
-- Testing/dev: `pytest`, `pytest-asyncio`, `pytest-cov`, `ruff`
-- Observability: `structlog`, `opentelemetry-api`, `opentelemetry-sdk`
+## Selection rule
 
-I used these upstream package pages as references:
-- [LlamaIndex](https://pypi.org/project/llama-index/)
-- [Chainlit](https://pypi.org/project/chainlit/)
-- [llama-index-llms-azure-openai](https://pypi.org/project/llama-index-llms-azure-openai/)
-- [llama-index-vector-stores-azureaisearch](https://pypi.org/project/llama-index-vector-stores-azureaisearch/)
-- [PyMuPDF](https://pypi.org/project/pymupdf/)
-- [Ruff](https://pypi.org/project/ruff/)
-- [pytest](https://pypi.org/project/pytest/)
+Use a package only when it solves a concrete application requirement. Prefer managed Azure-native services and deterministic application logic over adding another execution or infrastructure dependency.
 
-If you want, I can turn this into a clean `pyproject.toml` dependency block next, with:
-1. Minimal production deps
-2. Dev/test deps
-3. Optional/enterprise deps
+## Current dependency policy
+
+The authoritative dependency versions live in `pyproject.toml`. This document is architectural guidance, not a second dependency manifest.
