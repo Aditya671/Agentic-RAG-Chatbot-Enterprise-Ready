@@ -26,3 +26,5 @@ jobs:
         run: ruff check .
       - name: Tests
         run: pytest
+      - name: Build wheel
+        run: python -m build --wheel
