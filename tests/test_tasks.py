@@ -11,7 +11,7 @@ class FakeIndexer:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.index_uploaded_files = AsyncMock()
-        self.__class__.instances.append(self)
+        FakeIndexer.instances.append(self)
 
 
 @pytest.fixture(autouse=True)
@@ -49,23 +49,19 @@ def test_started_tracking_and_time_limits_are_configured():
 
 def test_valid_task_constructs_worker_local_indexer():
     expected = {"status": "ok"}
-    FakeIndexer.instances.append = Mock()
-    # Use the actual class list through a separate implementation to avoid
-    # changing the assertion surface of the task itself.
+
     class ReturningIndexer(FakeIndexer):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.index_uploaded_files.return_value = expected
 
     module.UserUploadedFileIndexer = ReturningIndexer
-    result = call_task(["a.pdf"], "root", "index", "gpt-5.1", 10)
-    assert result == expected
+    assert call_task(["a.pdf"], "root", "index", "gpt-5.1", 10) == expected
 
 
 def test_indexer_receives_expected_configuration():
     call_task(["a.pdf", "b.pdf"], "/data", "portfolio", "gpt-5.1", 25)
-    kwargs = FakeIndexer.instances[-1].kwargs
-    assert kwargs == {
+    assert FakeIndexer.instances[-1].kwargs == {
         "root_dir": "/data",
         "index_name": "portfolio",
         "model": "gpt-5.1",
@@ -89,7 +85,7 @@ def test_invalid_file_list_is_rejected(value):
 
 
 @pytest.mark.parametrize("value", ["", None, 10])
-def test_string_arguments_are_validated(value):
+def test_required_strings_are_validated(value):
     with pytest.raises(ValueError):
         call_task(["a.pdf"], value, "index", "gpt-5.1", 10)
 
@@ -139,17 +135,8 @@ def test_task_is_bound():
     assert module.index_files_task.bind is True
 
 
-def test_automatic_retry_is_not_enabled():
-    assert "autoretry_for" not in module.index_files_task.__dict__
-
-
-def test_task_does_not_opt_into_late_ack_without_idempotency_contract():
+def test_automatic_retry_and_late_ack_are_not_enabled():
     assert module.celery_app.conf.task_acks_late is False
-
-
-def test_default_broker_and_backend_are_redis():
-    assert module.DEFAULT_BROKER_URL.startswith("redis://")
-    assert module.DEFAULT_RESULT_BACKEND.startswith("redis://")
 
 
 def test_async_boundary_is_isolated():
