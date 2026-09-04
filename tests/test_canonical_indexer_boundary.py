@@ -7,8 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 INDEXER = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/llama_indexer.py"
 SEARCH = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/index_engine.py"
-SEARCH_COMPAT = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/index_engine_upgraded.py"
-INDEXER_COMPAT = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/llama_indexer_upgraded.py"
+RETIRED_INDEXER = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/llama_indexer_upgraded.py"
+RETIRED_SEARCH = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/index_engine_upgraded.py"
 AZURE_COMPAT = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/azure_search_initializer.py"
 AZURE_UPGRADED = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/azure_search_initializer_upgraded.py"
 
@@ -30,9 +30,8 @@ def test_document_indexer_is_canonical() -> None:
     assert "nest_asyncio" not in _imports(INDEXER)
 
 
-def test_legacy_document_indexer_is_compatibility_only() -> None:
-    text = INDEXER_COMPAT.read_text(encoding="utf-8")
-    assert "from .llama_indexer import" in text or "from .llama_indexer" in text
+def test_retired_document_indexer_implementation_is_absent() -> None:
+    assert not RETIRED_INDEXER.exists()
 
 
 def test_azure_search_index_engine_is_canonical() -> None:
@@ -47,11 +46,8 @@ def test_azure_search_index_engine_is_canonical() -> None:
     assert "ServiceContext" not in text
 
 
-def test_legacy_index_engine_is_compatibility_only() -> None:
-    text = SEARCH_COMPAT.read_text(encoding="utf-8")
-    assert "from .index_engine import" in text
-    assert "AzureAISearchVectorStore" not in text
-    assert "DefaultAzureCredential" not in text
+def test_retired_index_engine_implementation_is_absent() -> None:
+    assert not RETIRED_SEARCH.exists()
 
 
 def test_historical_azure_initializer_is_compatibility_only() -> None:
