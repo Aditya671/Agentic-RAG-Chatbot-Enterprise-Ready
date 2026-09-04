@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.credentials.aws_credential_manager` to the canonical AWS credential and Secrets Manager implementation.
+- Reduced `aws_credential_manager_upgraded.py` to a compatibility-only re-export.
+- Preserved Boto3's default credential provider chain, environment-first secret lookup, and AWS Secrets Manager fallback.
+- Preserved configurable retries, timeouts, optional caching, and normalized provider errors from the hardened implementation.
+- Moved AWS credential regression coverage to the maintained top-level `tests/` suite.
+- Removed the migration-era AWS credential regression suite and upgrade report.
+
+---
+
 ## [0.2.20] - 2026-09-04
 
 ### Changed
