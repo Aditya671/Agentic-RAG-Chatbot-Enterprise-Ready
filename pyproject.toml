@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.14"
+version = "0.2.15"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -53,7 +53,7 @@ dev = [
 agentic-rag = "agentic_rag_chatbot_enterprise_ready.cli:cli"
 
 [build-system]
-requires = ["setuptools>=78,<81]
+requires = ["setuptools>=78,<81"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
