@@ -15,8 +15,7 @@ def test_validate_top_k_rejects_non_integer_values(value):
         validate_top_k(value)
 
 
-def test_validate_top_k_rejects_non_positive_values():
-    with pytest.raises(ValueError, match=">= 1"):
-        validate_top_k(0)
-    with pytest.raises(ValueError, match=">= 1"):
-        validate_top_k(-1)
+@pytest.mark.parametrize("value", [0, -1])
+def test_validate_top_k_rejects_non_positive_values(value):
+    with pytest.raises(ValueError, match="similarity_top_k must be >= 1"):
+        validate_top_k(value)

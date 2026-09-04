@@ -12,6 +12,11 @@ from backend.orchestration.provider_boundaries import (
 from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.runtime_adapter import AgentRuntimeAdapter
 from backend.orchestration.runtime_boundary import AgentRuntimeBoundary
+from backend.orchestration.runtime_components import (
+    build_code_interpreter,
+    build_graph_rag,
+    build_reranker,
+)
 from backend.orchestration.runtime_policy import validate_top_k
 from backend.orchestration.tool_factory import build_function_tool, build_retriever_tool
 
@@ -23,9 +28,12 @@ __all__ = [
     "IntegratedAsyncAgenticAiSystem",
     "RetrievalConfig",
     "build_agent",
+    "build_code_interpreter",
     "build_function_tool",
+    "build_graph_rag",
     "build_retriever",
     "build_retriever_tool",
+    "build_reranker",
     "build_structured_query_engine",
     "resolve_query_mode",
     "validate_top_k",
