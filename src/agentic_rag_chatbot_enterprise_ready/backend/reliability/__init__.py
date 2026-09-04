@@ -1,5 +1,6 @@
 """Provider-neutral reliability primitives for agent execution."""
 
+from .claims import Claim, ClaimEvidenceLink, ClaimGroundingEvaluator, GroundingResult
 from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
 from .durable_store import JsonlReliabilityStore
 from .evaluation import EvaluationEngine, EvaluationResult
@@ -18,6 +19,10 @@ from .store import InMemoryReliabilityStore
 
 __all__ = [
     "AgentObservability",
+    "Claim",
+    "ClaimEvidenceLink",
+    "ClaimGroundingEvaluator",
+    "GroundingResult",
     "Evidence",
     "EvidenceRecord",
     "ExecutionEvent",
