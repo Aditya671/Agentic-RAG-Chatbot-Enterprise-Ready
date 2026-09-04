@@ -1,9 +1,4 @@
-"""Provider-aware agent construction for the converged orchestration path.
-
-The legacy agent keeps its historical private builder for compatibility. New
-runtime code uses this builder so retrieval policy is translated through the
-provider boundary and tool composition stays in one explicit migration seam.
-"""
+"""Provider-aware agent construction for the canonical orchestration path."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -12,6 +7,7 @@ from typing import Any
 from llama_index.core.agent.workflow import FunctionAgent
 
 from backend.orchestration.provider_boundaries import build_retriever
+from backend.orchestration.tool_factory import build_function_tool, build_retriever_tool
 from backend.prompts import AGENTIC_AI_CODEX_PROMPT, AGENTIC_AI_SYSTEM_PROMPT
 
 
@@ -23,8 +19,6 @@ def build_agent(system: Any) -> FunctionAgent:
         retriever_kwargs["node_postprocessors"] = [system.reranker]
 
     retriever = build_retriever(system.index, retrieval, **retriever_kwargs)
-    build_retriever_tool = system._AsyncAgenticAiSystem__build_retriever_tool
-    build_function_tool = system._AsyncAgenticAiSystem__build_function_tool
 
     tools = [
         build_retriever_tool(

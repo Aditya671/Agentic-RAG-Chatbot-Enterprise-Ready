@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-09-04
+
+### Changed
+
+- Extracted agent `FunctionTool` and `RetrieverTool` construction into a dedicated `tool_factory` boundary.
+- Removed the canonical agent builder's dependency on name-mangled helpers from the legacy runtime.
+- Exposed the maintained tool factories through the orchestration package.
+- Added dependency-isolated regression tests for tool validation and provider delegation.
+
+---
+
 ## [0.2.3] - 2026-09-04
 
 ### Changed
@@ -162,16 +173,9 @@ All notable changes to this project will be documented in this file. This projec
 ### Added
 
 - **Application Entrypoint (`app.py`):** Initialized the core Chainlit application, establishing the user interface and entry point for the agentic system.
-- **User Session Management:** Implemented basic user session handling using `chainlit.user_session` to manage application state.
-- **Core Chat Hooks:** Set up fundamental Chainlit lifecycle hooks, including `@cl.on_chat_start` and `@cl.on_message`, `@cl.on_settings_update`, `@cl.on_chat_resume`, and `@cl.on_feedback`.
-- **Asynchronous Streaming:** Configured the UI to handle and render asynchronous, token-by-token streaming responses.
-- **Interactive Settings Panel:** Created the initial `cl.ChatSettings` panel for dynamic agent parameter adjustment.
-- **File Upload Interface:** Integrated Chainlit's file upload capability.
-- **Application Starter Template**: Established a foundational project template with essential configurations, directory structure, and boilerplate code to accelerate development and ensure consistency across deployments.
-
-### Security
-
-- **Authentication Stub:** Laid the groundwork for user authentication by integrating the `@cl.oauth_callback` decorator for Azure AD.
+- **User Session Management:** Set up Chainlit user session handling and core chat lifecycle hooks.
+- **Asynchronous Streaming:** Configured the UI for asynchronous streaming responses.
+- **Interactive Settings Panel:** Added dynamic agent settings and file upload support.
 
 ---
 
@@ -179,9 +183,4 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Added
 
-- **Project Initialization**: Set up the initial Git repository and project scaffolding.
-- **Build System**: Created `pyproject.toml` to manage dependencies, project metadata, and build configurations.
-- **Development Automation**: Implemented a `Makefile` for streamlined installation, testing, and execution commands.
-- **Core Logging**: Developed a centralized logger (`app_logger.py`) for consistent, timestamped logging across application components with configurable levels.
-
----
+- **Project Initialization**: Set up the initial Git repository, build system, development automation, centralized logging, and high-level enterprise architecture.
