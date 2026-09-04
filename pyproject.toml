@@ -50,7 +50,7 @@ dev = [
 ]
 
 [project.scripts]
-agentic-rag = "agentic_rag_chatbot_azure_native.cli:cli"
+agentic-rag = "agentic_rag_chatbot_enterprise_ready.cli:cli"
 
 [build-system]
 requires = ["setuptools>=78,<81]
