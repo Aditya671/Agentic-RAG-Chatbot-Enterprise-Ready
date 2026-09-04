@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 import importlib.util
-import os
 import sys
 import types
 from pathlib import Path
@@ -8,8 +9,8 @@ from unittest.mock import Mock
 import pytest
 
 
-# Dependency-isolated stubs. The regression suite validates the adapter's
-# behavior and LlamaIndex API contract without requiring a live Nebula server.
+# Dependency-isolated stubs validate the GraphRAG boundary without requiring a
+# live NebulaGraph server or the optional provider integration.
 llama_index = types.ModuleType("llama_index")
 core = types.ModuleType("llama_index.core")
 graph_stores = types.ModuleType("llama_index.core.graph_stores")
@@ -21,36 +22,36 @@ nebula_root = types.ModuleType("llama_index.graph_stores")
 
 
 class Document:
-    def __init__(self, text=""):
+    def __init__(self, text: str = "") -> None:
         self.text = text
 
 
 class SimplePropertyGraphStore:
-    def close(self):
+    def close(self) -> None:
         self.closed = True
 
 
 class SimpleVectorStore:
-    def close(self):
+    def close(self) -> None:
         self.closed = True
 
 
 class FakeNebulaPropertyGraphStore:
-    create_calls = []
+    create_calls: list[dict] = []
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         self.kwargs = kwargs
         FakeNebulaPropertyGraphStore.create_calls.append(kwargs)
 
-    def close(self):
+    def close(self) -> None:
         self.closed = True
 
 
 class PropertyGraphIndex:
-    from_documents_calls = []
-    from_existing_calls = []
+    from_documents_calls: list[tuple] = []
+    from_existing_calls: list[dict] = []
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.inserted = []
         self.retriever_kwargs = None
         self.query_engine_kwargs = None
@@ -70,7 +71,7 @@ class PropertyGraphIndex:
         index.kwargs = kwargs
         return index
 
-    def insert(self, document):
+    def insert(self, document) -> None:
         self.inserted.append(document)
 
     def as_retriever(self, **kwargs):
@@ -107,11 +108,11 @@ sys.modules.update(
     }
 )
 
-MODULE_PATH = Path("/mnt/data/graph_rag_upgraded.py")
-spec = importlib.util.spec_from_file_location(
-    "graph_rag_under_test",
-    MODULE_PATH,
+MODULE_PATH = Path(__file__).resolve().parents[1] / (
+    "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration/graph_rag.py"
 )
+spec = importlib.util.spec_from_file_location("graph_rag_under_test", MODULE_PATH)
+assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
@@ -130,19 +131,13 @@ def reset_fakes():
 
 
 def make_system(**kwargs):
-    return GraphRAGSystem(
-        llm=Mock(),
-        embed_model=Mock(),
-        **kwargs,
-    )
+    return GraphRAGSystem(llm=Mock(), embed_model=Mock(), **kwargs)
 
 
 def test_default_store_is_simple_property_graph_store(monkeypatch):
     monkeypatch.delenv("NEBULA_SPACE_NAME", raising=False)
     monkeypatch.delenv("NEBULA_SPACE", raising=False)
-
     system = make_system()
-
     assert isinstance(system.graph_store, SimplePropertyGraphStore)
     assert isinstance(system.vector_store, SimpleVectorStore)
 
@@ -153,9 +148,7 @@ def test_nebula_is_selected_when_space_is_configured(monkeypatch):
     monkeypatch.setenv("NEBULA_PORT", "9669")
     monkeypatch.setenv("NEBULA_USERNAME", "root")
     monkeypatch.setenv("NEBULA_PASSWORD", "nebula")
-
     system = make_system()
-
     assert isinstance(system.graph_store, FakeNebulaPropertyGraphStore)
     assert FakeNebulaPropertyGraphStore.create_calls[-1] == {
         "space": "enterprise_graph",
@@ -169,67 +162,56 @@ def test_nebula_is_selected_when_space_is_configured(monkeypatch):
 def test_explicit_use_nebula_requires_space(monkeypatch):
     monkeypatch.delenv("NEBULA_SPACE_NAME", raising=False)
     monkeypatch.delenv("NEBULA_SPACE", raising=False)
-
     with pytest.raises(GraphRAGConfigurationError):
         make_system(use_nebula=True)
 
 
-def test_invalid_similarity_top_k_is_rejected():
+@pytest.mark.parametrize("value", [True, False, 0, -1, 1.0, "5"])
+def test_invalid_similarity_top_k_is_rejected(value):
     with pytest.raises(ValueError):
-        make_system(similarity_top_k=0)
+        make_system(similarity_top_k=value)
 
 
 def test_invalid_path_depth_is_rejected():
     with pytest.raises(ValueError):
         make_system(path_depth=-1)
+    with pytest.raises(ValueError):
+        make_system(path_depth=True)
 
 
 def test_empty_documents_do_not_build_index():
     system = make_system()
-
-    result = system.build_graph_from_documents([])
-
-    assert result is None
+    assert system.build_graph_from_documents([]) is None
     assert PropertyGraphIndex.from_documents_calls == []
 
 
 def test_empty_document_is_skipped():
     system = make_system()
-
-    result = system.build_graph_from_documents(
-        [Document(""), Document("valid knowledge")]
-    )
-
+    result = system.build_graph_from_documents([Document(""), Document("valid knowledge")])
     assert result is not None
     documents = PropertyGraphIndex.from_documents_calls[-1][0]
-    assert len(documents) == 1
-    assert documents[0].text == "valid knowledge"
+    assert [document.text for document in documents] == ["valid knowledge"]
 
 
 def test_invalid_document_type_is_rejected():
-    system = make_system()
-
     with pytest.raises(TypeError):
-        system.build_graph_from_documents(["not a Document"])
+        make_system().build_graph_from_documents(["not a Document"])
 
 
-def test_property_graph_index_replaces_deprecated_knowledge_graph_index():
-    source = MODULE_PATH.read_text()
+def test_property_graph_index_is_canonical_api():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    assert "PropertyGraphIndex" in source
+    assert "KnowledgeGraphIndex" not in source
+    assert "SimpleGraphStore" not in source
+    assert "SimplePropertyGraphStore" in source
 
-    assert "PropertyGraphIndex" in source and "from llama_index.core import" in source
-    assert "from llama_index.core import StorageContext, KnowledgeGraphIndex" not in source
-    assert "from llama_index.core.graph_stores import SimpleGraphStore" not in source
-    assert "from llama_index.core.graph_stores import SimplePropertyGraphStore" in source
 
 def test_build_uses_property_graph_index_and_separate_vector_store():
     system = make_system()
     documents = [Document("Alice works for Acme.")]
-
     result = system.build_graph_from_documents(documents)
-
     assert result is system.index
     docs, kwargs = PropertyGraphIndex.from_documents_calls[-1]
-
     assert docs == documents
     assert kwargs["property_graph_store"] is system.graph_store
     assert kwargs["vector_store"] is system.vector_store
@@ -240,36 +222,20 @@ def test_build_uses_property_graph_index_and_separate_vector_store():
 def test_custom_extractors_are_forwarded():
     system = make_system()
     extractor = Mock()
-
-    system.build_graph_from_documents(
-        [Document("Alice manages Bob.")],
-        kg_extractors=[extractor],
-    )
-
-    kwargs = PropertyGraphIndex.from_documents_calls[-1][1]
-
-    assert kwargs["kg_extractors"] == [extractor]
+    system.build_graph_from_documents([Document("Alice manages Bob.")], kg_extractors=[extractor])
+    assert PropertyGraphIndex.from_documents_calls[-1][1]["kg_extractors"] == [extractor]
 
 
 def test_old_max_triplets_parameter_is_not_passed_to_new_api():
     system = make_system()
-
-    system.build_graph_from_documents(
-        [Document("Alice manages Bob.")],
-        max_triplets_per_chunk=2,
-    )
-
-    kwargs = PropertyGraphIndex.from_documents_calls[-1][1]
-
-    assert "max_triplets_per_chunk" not in kwargs
+    system.build_graph_from_documents([Document("Alice manages Bob.")], max_triplets_per_chunk=2)
+    assert "max_triplets_per_chunk" not in PropertyGraphIndex.from_documents_calls[-1][1]
 
 
 def test_insert_documents_uses_existing_index():
     system = make_system()
     system.build_graph_from_documents([Document("initial")])
-
     system.insert_documents([Document("new")])
-
     assert len(system.index.inserted) == 1
     assert system.index.inserted[0].text == "new"
 
@@ -277,13 +243,8 @@ def test_insert_documents_uses_existing_index():
 def test_load_existing_graph_uses_from_existing():
     graph_store = SimplePropertyGraphStore()
     vector_store = SimpleVectorStore()
-
     system = make_system()
-    result = system.load_existing_graph(
-        graph_store=graph_store,
-        vector_store=vector_store,
-    )
-
+    result = system.load_existing_graph(graph_store=graph_store, vector_store=vector_store)
     assert result is system.index
     kwargs = PropertyGraphIndex.from_existing_calls[-1]
     assert kwargs["property_graph_store"] is graph_store
@@ -291,16 +252,10 @@ def test_load_existing_graph_uses_from_existing():
     assert kwargs["embed_model"] is system.embed_model
 
 
-def test_retriever_requires_built_index():
+def test_retriever_and_query_engine_require_built_index():
     system = make_system()
-
     with pytest.raises(GraphRAGError):
         system.as_retriever()
-
-
-def test_query_engine_requires_built_index():
-    system = make_system()
-
     with pytest.raises(GraphRAGError):
         system.as_query_engine()
 
@@ -308,10 +263,7 @@ def test_query_engine_requires_built_index():
 def test_retriever_exposes_graph_query_configuration():
     system = make_system(similarity_top_k=7, path_depth=2, include_text=True)
     system.build_graph_from_documents([Document("Alice works for Acme.")])
-
-    retriever = system.as_retriever()
-
-    assert retriever["kwargs"] == {
+    assert system.as_retriever()["kwargs"] == {
         "include_text": True,
         "similarity_top_k": 7,
         "path_depth": 2,
@@ -321,9 +273,7 @@ def test_retriever_exposes_graph_query_configuration():
 def test_query_engine_exposes_graph_query_configuration():
     system = make_system(similarity_top_k=3, path_depth=1)
     system.build_graph_from_documents([Document("Alice works for Acme.")])
-
     engine = system.as_query_engine()
-
     assert system.index.query_engine_kwargs == {
         "include_text": True,
         "similarity_top_k": 3,
@@ -333,53 +283,36 @@ def test_query_engine_exposes_graph_query_configuration():
 
 
 def test_query_validates_empty_input():
-    system = make_system()
-
     with pytest.raises(ValueError):
-        system.query("")
+        make_system().query("")
 
 
 def test_query_returns_string():
     system = make_system()
     system.build_graph_from_documents([Document("Alice works for Acme.")])
-
     assert system.query("Who works for Acme?") == "answer:Who works for Acme?"
 
 
-def test_close_closes_supported_stores():
+def test_close_and_context_manager_close_supported_stores():
     system = make_system()
-
     system.close()
+    assert system.graph_store.closed is True
+    assert system.vector_store.closed is True
 
-    assert getattr(system.graph_store, "closed", False) is True
-    assert getattr(system.vector_store, "closed", False) is True
-
-
-def test_context_manager_closes_stores():
-    with make_system() as system:
-        assert system.index is None
-
-    assert getattr(system.graph_store, "closed", False) is True
-    assert getattr(system.vector_store, "closed", False) is True
+    with make_system() as managed:
+        assert managed.index is None
+    assert managed.graph_store.closed is True
+    assert managed.vector_store.closed is True
 
 
 def test_nebula_port_validation():
     with pytest.raises(GraphRAGConfigurationError):
-        make_system(
-            use_nebula=True,
-            nebula_space_name="graph",
-            nebula_port="not-an-int",
-        )
+        make_system(use_nebula=True, nebula_space_name="graph", nebula_port="not-an-int")
 
 
 def test_nebula_explicit_configuration_overrides_environment(monkeypatch):
     monkeypatch.setenv("NEBULA_SPACE_NAME", "environment-space")
-
-    system = make_system(
-        use_nebula=True,
-        nebula_space_name="explicit-space",
-    )
-
+    system = make_system(use_nebula=True, nebula_space_name="explicit-space")
     assert system.graph_store.kwargs["space"] == "explicit-space"
 
 
@@ -392,9 +325,8 @@ def test_graph_build_failure_is_translated():
     original = module.PropertyGraphIndex
     module.PropertyGraphIndex = BrokenIndex
     try:
-        system = make_system()
         with pytest.raises(GraphRAGError):
-            system.build_graph_from_documents([Document("valid")])
+            make_system().build_graph_from_documents([Document("valid")])
     finally:
         module.PropertyGraphIndex = original
 
@@ -408,8 +340,7 @@ def test_existing_graph_failure_is_translated():
     original = module.PropertyGraphIndex
     module.PropertyGraphIndex = BrokenIndex
     try:
-        system = make_system()
         with pytest.raises(GraphRAGError):
-            system.load_existing_graph()
+            make_system().load_existing_graph()
     finally:
         module.PropertyGraphIndex = original
