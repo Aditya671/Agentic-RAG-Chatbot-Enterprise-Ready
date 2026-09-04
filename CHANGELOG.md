@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-09-04
+
+### Changed
+
+- Extracted structured CSV prompt construction and provider invocation into a dedicated runtime boundary.
+- Made the maintained converged runtime delegate CSV engine construction instead of assembling provider prompts inline.
+- Added dependency-light regression coverage for the structured CSV runtime boundary.
+- Kept the legacy upgraded runtime compatible while the maintained path owns the new boundary.
+
+---
+
 ## [0.2.6] - 2026-09-04
 
 ### Changed
