@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-09-04
+
+### Changed
+
+- Ported retained legacy-runtime regression checks into the maintained top-level `tests/` boundary.
+- Removed the dependency of the maintained regression checks on `/mnt/data` or other machine-specific temporary source paths.
+- Documented the remaining compatibility inheritance and the next extraction boundary.
+- Bumped the package version to `0.2.5` for the maintained runtime/test-boundary cleanup.
+
+---
+
 ## [0.2.4] - 2026-09-04
 
 ### Changed
@@ -30,7 +41,7 @@ All notable changes to this project will be documented in this file. This projec
 
 - **Document Digitization Pipeline**: Implemented a comprehensive and extensible document processing pipeline (`backend/process_doc/`).
   - **Diverse Extractors**: Integrated Azure AI Document Intelligence (`AzureExtractor`), LlamaIndex for multimodal extraction (`MultimodalExtractor`), and Langchain for Office documents (`OfficeExtractor`).
-  - **Advanced Processors**: Added tools for document classification (`Classifier`), OpenCV-based image preprocessing (`CVPreprocessor`), Knowledge Graph extraction (`GraphExtractor`), local NLP with Spacy/HuggingFace (`LocalNLPProcessor`), metadata extraction (`MetadataExtractor`), and PII redaction via Microsoft Presidio (`PIIRedactor`).
+  - **Advanced Processors**: Added tools for document classification (`Classifier`), OpenCV-based image preprocessing (`CVPreprocessor`), Knowledge Graph extraction (`GraphExtractor`), Local NLP with Spacy/HuggingFace (`LocalNLPProcessor`), Metadata extraction (`MetadataExtractor`), and PII redaction via Microsoft Presidio (`PIIRedactor`).
   - **Orchestration & HITL**: Introduced an end-to-end processing pipeline (`Pipeline`) with a hierarchical indexer (`HierarchicalIndexer`) for intelligent chunking and a Human-in-the-Loop queue (`HITLQueue`) for reviewing low-confidence extractions.
 
 ### Changed
