@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-09-04
+
+### Changed
+
+- Extracted `similarity_top_k` validation into a provider-neutral runtime policy boundary.
+- Prevented silent coercion of booleans, strings, floats, and other invalid retrieval settings.
+- Wired the converged runtime to the shared retrieval-policy validator before constructing `RetrievalConfig`.
+- Added dependency-light regression coverage for the retrieval policy.
+
+---
+
 ## [0.2.5] - 2026-09-04
 
 ### Changed
@@ -57,7 +68,7 @@ All notable changes to this project will be documented in this file. This projec
 - **Asynchronous Task Processing**: Integrated **Celery** and **Redis** to create a distributed task queue. File indexing is now offloaded to a background worker, preventing UI blocking and improving system responsiveness.
 - **Persistent Knowledge Graph**: Implemented `GraphRAGSystem` with **NebulaGraph** as a persistent backend, enabling scalable, multi-session relationship querying. Includes a graceful fallback to an in-memory store if NebulaGraph is unavailable.
 - **Neural Reranking Layer**: Added an `LLMRerank` postprocessor to the RAG pipeline to refine search results, improving the relevance and accuracy of retrieved documents.
-- **Interactive Feature Toggles**: Implemented `Switch` widgets in the Chainlit UI, allowing users to dynamically enable or disable the Neural Reranker and GraphRAG features during a session.
+- **Interactive Feature Toggles**: Added `Switch` widgets in the Chainlit UI, allowing users to dynamically enable or disable the Neural Reranker and GraphRAG features during a session.
 - **Observability Hooks**: Prepared the system for deep tracing by adding support for **LangSmith** environment variables, enabling full visibility into agent decision-making and tool usage.
 
 ### Changed
