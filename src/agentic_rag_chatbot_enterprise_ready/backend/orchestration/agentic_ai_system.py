@@ -1,13 +1,19 @@
-"""Canonical Agentic RAG runtime compatibility surface."""
+"""Canonical Agentic RAG runtime compatibility surface.
+
+The historical module path remains stable for existing callers, but the
+runtime implementation is now the converged provider-boundary implementation.
+The older ``agentic_ai_system_upgraded`` module is retained as an internal
+migration source rather than as the preferred application entry point.
+"""
 from __future__ import annotations
 
 from pathlib import Path
 
-from .agentic_ai_system_upgraded import AsyncAgenticAiSystem as _ModernAsyncAgenticAiSystem
+from .integrated_agent_system import IntegratedAsyncAgenticAiSystem
 
 
-class AsyncAgenticAiSystem(_ModernAsyncAgenticAiSystem):
-    """Expose the modern runtime while preserving the frontend upload contract."""
+class AsyncAgenticAiSystem(IntegratedAsyncAgenticAiSystem):
+    """Expose the converged runtime while preserving the legacy API surface."""
 
     async def upload_and_index_files(self, uploaded_files):
         """Accept Chainlit upload wrappers and dispatch them to the async indexer."""
