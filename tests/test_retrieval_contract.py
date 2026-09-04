@@ -32,10 +32,19 @@ def test_top_k_rejects_bool_and_non_positive_values() -> None:
             RetrievalConfig(top_k=value)  # type: ignore[arg-type]
 
 
-def test_query_mode_must_be_non_empty() -> None:
-    for value in ("", "   "):
+def test_query_mode_must_be_semantic_hybrid() -> None:
+    for value in ("", "   ", "vector", "similarity"):
         with pytest.raises(ValueError):
             RetrievalConfig(query_mode=value)
+
+
+def test_query_mode_can_be_resolved_at_provider_boundary() -> None:
+    config = RetrievalConfig()
+
+    assert config.resolve_query_mode(str.upper) == "SEMANTIC_HYBRID"
+
+    with pytest.raises(TypeError):
+        config.resolve_query_mode(None)  # type: ignore[arg-type]
 
 
 def test_config_is_immutable() -> None:
