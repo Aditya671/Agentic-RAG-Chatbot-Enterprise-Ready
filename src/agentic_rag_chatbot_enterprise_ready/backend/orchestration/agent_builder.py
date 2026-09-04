@@ -1,13 +1,12 @@
 """Provider-aware agent construction for the canonical orchestration path."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
-from llama_index.core.agent.workflow import FunctionAgent
 
 from backend.orchestration.tool_factory import build_function_tool, build_retriever_tool
 from backend.prompts import AGENTIC_AI_SYSTEM_PROMPT, render_agent_prompt
+from llama_index.core.agent.workflow import FunctionAgent
 
 
 def build_agent(system: Any) -> FunctionAgent:
@@ -69,7 +68,7 @@ def build_agent(system: Any) -> FunctionAgent:
 
     system_prompt = render_agent_prompt(
         AGENTIC_AI_SYSTEM_PROMPT,
-        now_str=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        now_str=datetime.now(UTC).strftime("%Y-%m-%d"),
     )
 
     return FunctionAgent(
