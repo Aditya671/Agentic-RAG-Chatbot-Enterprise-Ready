@@ -15,6 +15,15 @@ def test_maintained_agent_builder_does_not_register_code_execution():
     assert "AGENTIC_AI_CODEX_PROMPT" not in text
 
 
+def test_canonical_runtime_contains_no_code_execution_surface():
+    text = (ORCHESTRATION / "agentic_ai_system_runtime.py").read_text(encoding="utf-8")
+    assert "CodeInterpreterSandbox" not in text
+    assert "build_code_interpreter" not in text
+    assert "enable_coding_assistant" not in text
+    assert "code_interpreter_tool" not in text
+    assert "AGENTIC_AI_CODEX_PROMPT" not in text
+
+
 def test_compatibility_component_never_constructs_a_sandbox():
     text = (ORCHESTRATION / "component_runtime.py").read_text(encoding="utf-8")
     assert "return initialize()" not in text
