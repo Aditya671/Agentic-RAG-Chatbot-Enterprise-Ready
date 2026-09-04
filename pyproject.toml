@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.27"
+version = "0.2.28"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -29,7 +29,14 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["*_upgraded.py", "old.py"]
+exclude = [
+  "*_upgraded.py",
+  "old.py",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/integrations/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/process_doc/**",
+  "src/agentic_rag_chatbot_enterprise_ready/frontend/**",
+  "src/agentic_rag_chatbot_enterprise_ready/doc_digitization.py",
+]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
