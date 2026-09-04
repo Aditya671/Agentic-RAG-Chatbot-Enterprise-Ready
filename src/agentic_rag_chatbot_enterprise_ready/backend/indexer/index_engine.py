@@ -1,7 +1,8 @@
 """Canonical Azure AI Search + LlamaIndex index initialization.
 
 This module owns the maintained Azure Search integration. The historical
-``index_engine_upgraded`` path is retained only as a compatibility import.
+``index_engine_upgraded`` path is retired rather than used as a second runtime
+implementation.
 
 The implementation uses current LlamaIndex 0.14.x APIs, explicit Azure SDK
 clients, caller-owned credentials, and an explicit client lifecycle. It does
@@ -120,16 +121,18 @@ def initialize_index(
         try:
             index_management = IndexManagement(index_management)
         except ValueError as exc:
-            valid = ", ".join(
-                [IndexManagement.VALIDATE_INDEX.value, IndexManagement.CREATE_IF_NOT_EXISTS.value]
+            valid_values = (
+                str(IndexManagement.VALIDATE_INDEX.value),
+                str(IndexManagement.CREATE_IF_NOT_EXISTS.value),
             )
+            valid = ", ".join(valid_values)
             raise ValueError(
                 f"Unsupported index_management={index_management!r}. Expected one of: {valid}"
             ) from exc
     if not isinstance(index_management, IndexManagement):
         raise TypeError("index_management must be an IndexManagement value or its string value.")
     if kwargs:
-        unexpected = ", ".join(sorted(kwargs))
+        unexpected = ", ".join(str(key) for key in sorted(kwargs))
         raise TypeError(f"Unexpected keyword argument(s): {unexpected}")
     if llm is None:
         raise ValueError("llm must be provided.")
