@@ -9,6 +9,8 @@ INDEXER = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/llama
 SEARCH = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/index_engine.py"
 SEARCH_COMPAT = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/index_engine_upgraded.py"
 INDEXER_COMPAT = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/llama_indexer_upgraded.py"
+AZURE_COMPAT = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/azure_search_initializer.py"
+AZURE_UPGRADED = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/azure_search_initializer_upgraded.py"
 
 
 def _imports(path: Path) -> set[str]:
@@ -33,27 +35,39 @@ def test_legacy_document_indexer_is_compatibility_only() -> None:
     assert "from .llama_indexer import" in text or "from .llama_indexer" in text
 
 
-def test_azure_search_initializer_is_canonical() -> None:
+def test_azure_search_index_engine_is_canonical() -> None:
     text = SEARCH.read_text(encoding="utf-8")
     imports = _imports(SEARCH)
     assert "initialize_index" in text
-    assert "azure.search.documents" in imports
+    assert "azure.search.documents.aio" in imports
+    assert "azure.search.documents.indexes" in imports
     assert "nest_asyncio" not in imports
     assert "DefaultAzureCredential" not in text
     assert "GPTVectorStoreIndex" not in text
     assert "ServiceContext" not in text
 
 
-def test_upgraded_search_initializer_is_compatibility_only() -> None:
+def test_legacy_index_engine_is_compatibility_only() -> None:
     text = SEARCH_COMPAT.read_text(encoding="utf-8")
     assert "from .index_engine import" in text
     assert "AzureAISearchVectorStore" not in text
     assert "DefaultAzureCredential" not in text
 
 
+def test_historical_azure_initializer_is_compatibility_only() -> None:
+    text = AZURE_COMPAT.read_text(encoding="utf-8")
+    assert "from .index_engine import" in text
+    assert "azure_search_initializer_upgraded" not in text
+    assert "AzureAISearchVectorStore" not in text
+    assert "DefaultAzureCredential" not in text
+
+
+def test_obsolete_azure_initializer_implementation_is_removed() -> None:
+    assert not AZURE_UPGRADED.exists()
+
+
 def test_canonical_document_indexer_defines_expected_supported_formats() -> None:
-    canonical = ROOT / "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/llama_indexer.py"
-    tree = ast.parse(canonical.read_text(encoding="utf-8"))
+    tree = ast.parse(INDEXER.read_text(encoding="utf-8"))
     names = {
         node.targets[0].id
         for node in tree.body
