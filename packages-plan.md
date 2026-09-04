@@ -21,7 +21,6 @@ This document captures the package strategy for the enterprise RAG application.
 - `requests`
 - `PyMuPDF`
 - `celery`
-- `motor`
 - `pymongo`
 - `boto3`
 - `botocore`
