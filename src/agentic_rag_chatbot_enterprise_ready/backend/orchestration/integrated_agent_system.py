@@ -1,4 +1,4 @@
-"""Converged runtime integration for the compatibility agent."""
+"""Converged runtime integration for the canonical agent runtime."""
 from __future__ import annotations
 
 from typing import Any
@@ -6,7 +6,7 @@ from typing import Any
 from backend.ai_models import AIModelTypes
 from backend.llm_loader import load_llm
 from backend.orchestration.agent_builder import build_agent
-from backend.orchestration.agentic_ai_system_upgraded import AsyncAgenticAiSystem, logger
+from backend.orchestration.agentic_ai_system_runtime import AsyncAgenticAiSystem, logger
 from backend.orchestration.component_runtime import build_graph_rag, build_reranker
 from backend.orchestration.execution_contract import AgentResponse
 from backend.orchestration.graph_rag import GraphRAGSystem
