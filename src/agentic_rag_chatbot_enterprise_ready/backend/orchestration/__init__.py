@@ -12,6 +12,7 @@ from backend.orchestration.provider_boundaries import (
 from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.runtime_adapter import AgentRuntimeAdapter
 from backend.orchestration.runtime_boundary import AgentRuntimeBoundary
+from backend.orchestration.runtime_policy import validate_top_k
 from backend.orchestration.tool_factory import build_function_tool, build_retriever_tool
 
 __all__ = [
@@ -27,4 +28,5 @@ __all__ = [
     "build_retriever_tool",
     "build_structured_query_engine",
     "resolve_query_mode",
+    "validate_top_k",
 ]
