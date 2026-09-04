@@ -2,7 +2,7 @@ name: quality
 
 on:
   push:
-    branches: ["main", "refactor/**"]
+    branches: ["main", "refactor/**", "chore/**"]
   pull_request:
     branches: ["main"]
 
