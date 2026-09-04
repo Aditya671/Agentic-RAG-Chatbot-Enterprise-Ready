@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-09-04
+
+### Changed
+
+- Made the top-level `tests/` directory the CI test boundary so migration-era tests embedded under `src/` are no longer collected automatically.
+- Removed the obsolete `nest-asyncio` runtime dependency after the agent execution path was made explicitly async/sync-safe.
+- Added `pytest-asyncio` auto mode to make asynchronous tests deterministic without event-loop patching.
+- Added a repository-portability regression guard for the maintained CI test suite.
+
+---
+
 ## [1.2.0] - 2026-05-17
 
 ### Added
@@ -121,7 +132,6 @@ All notable changes to this project will be documented in this file. This projec
 
 - **Structured Data Analysis**: Integrated a `PandasQueryEngine` as a new agent tool to enable natural language querying of structured CSV data.
 
-
 ### Changed
 
 - **Agentic Router Logic**: Enhanced the `FunctionAgent` to act as a router, dynamically selecting between the `RetrieverTool` (for PDFs) and the `PandasQueryEngine` (for CSVs).
@@ -159,7 +169,6 @@ All notable changes to this project will be documented in this file. This projec
 - **File Upload Interface:** Integrated Chainlit's file upload capability.
 - **Application Starter Template**: Established a foundational project template with essential configurations, directory structure, and boilerplate code to accelerate development and ensure consistency across deployments.
 
-
 ### Security
 
 - **Authentication Stub:** Laid the groundwork for user authentication by integrating the `@cl.oauth_callback` decorator for Azure AD.
@@ -173,7 +182,6 @@ All notable changes to this project will be documented in this file. This projec
 - **Project Initialization**: Set up the initial Git repository and project scaffolding.
 - **Build System**: Created `pyproject.toml` to manage dependencies, project metadata, and build configurations.
 - **Development Automation**: Implemented a `Makefile` for streamlined installation, testing, and execution commands.
-- **Core Logging**: Developed a centralized logger (`app_logger.py`) for consistent, timestamped logging across the application with configurable levels.
-- **Architectural Blueprint**: Defined the high-level enterprise architecture, separating frontend, backend, and data layers.
+- **Core Logging**: Developed a centralized logger (`app_logger.py`) for consistent, timestamped logging across application components with configurable levels.
 
 ---
