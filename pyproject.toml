@@ -52,7 +52,7 @@ dev = [
 agentic-rag = "agentic_rag_chatbot_enterprise_ready.cli:cli"
 
 [build-system]
-requires = ["setuptools>=78,<81]
+requires = ["setuptools>=78,<81"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
