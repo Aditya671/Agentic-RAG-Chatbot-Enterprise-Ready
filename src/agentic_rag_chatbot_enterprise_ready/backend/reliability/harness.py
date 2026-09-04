@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Iterable
 
 from .contracts import ExecutionEvent, ExecutionTrace
 from .store import InMemoryReliabilityStore
@@ -25,6 +25,33 @@ class HarnessResult:
     response_text: str = ""
     failures: tuple[str, ...] = ()
     run_id: str = ""
+
+
+class ScenarioCatalog:
+    """Deterministic registry for named regression scenarios."""
+
+    def __init__(self, cases: Iterable[HarnessCase] = ()) -> None:
+        self._cases: dict[str, HarnessCase] = {}
+        for case in cases:
+            self.add(case)
+
+    def add(self, case: HarnessCase) -> None:
+        if not isinstance(case, HarnessCase):
+            raise TypeError("case must be a HarnessCase")
+        if not case.case_id.strip():
+            raise ValueError("case.case_id must be non-empty")
+        if case.case_id in self._cases:
+            raise ValueError(f"scenario already exists: {case.case_id}")
+        self._cases[case.case_id] = case
+
+    def get(self, case_id: str) -> HarnessCase:
+        try:
+            return self._cases[case_id]
+        except KeyError as exc:
+            raise KeyError(f"unknown scenario: {case_id}") from exc
+
+    def cases(self) -> tuple[HarnessCase, ...]:
+        return tuple(self._cases.values())
 
 
 class HarnessEngine:
@@ -64,6 +91,14 @@ class HarnessEngine:
             return HarnessResult(case.case_id, False, "error", failures=(str(exc),), run_id=trace.run_id)
         finally:
             self.store.save(trace)
+
+    async def replay(self, case_id: str, catalog: ScenarioCatalog, executor: Callable[[str], Awaitable[Any]]) -> HarnessResult:
+        """Replay a named scenario using its immutable expectations."""
+        return await self.run_case(catalog.get(case_id), executor)
+
+    async def replay_all(self, catalog: ScenarioCatalog, executor: Callable[[str], Awaitable[Any]]) -> tuple[HarnessResult, ...]:
+        """Replay scenarios in registration order for deterministic regression runs."""
+        return tuple(await self.replay(case.case_id, catalog, executor) for case in catalog.cases())
 
     @staticmethod
     def _extract_text(value: Any) -> str:
