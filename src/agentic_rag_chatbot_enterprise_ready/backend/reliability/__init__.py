@@ -8,8 +8,8 @@ from .harness import HarnessCase, HarnessEngine, HarnessResult, ScenarioCatalog
 from .monitoring import HealthSnapshot, MonitoringEngine
 from .observability import AgentObservability
 from .regression_promotion import (
-    RegressionProposal,
     RegressionPromotionEngine,
+    RegressionProposal,
     ReviewDecision,
     ReviewedRegression,
 )
