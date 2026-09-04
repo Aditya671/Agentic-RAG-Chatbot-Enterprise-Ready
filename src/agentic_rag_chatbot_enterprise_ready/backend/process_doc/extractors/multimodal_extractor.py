@@ -1,99 +1,109 @@
-import logging
+"""PDF image extraction with optional vision-model descriptions."""
+
+from __future__ import annotations
+
 import base64
-from typing import Dict, Any, List, Optional
+import logging
 from pathlib import Path
+from typing import Any
 
 try:
-    import fitz  # PyMuPDF
+    import fitz
     PYMUPDF_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     PYMUPDF_AVAILABLE = False
 
 try:
     from langchain_core.messages import HumanMessage
     LANGCHAIN_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     LANGCHAIN_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
+
 class MultiModalExtractor:
-    """
-    Extracts embedded charts, graphs, and images from documents and uses a
-    Vision LLM to generate textual descriptions for better semantic search.
-    """
-    def __init__(self, vision_llm=None):
-        """
-        Initialize with a Langchain Vision LLM (e.g. ChatOpenAI with gpt-4o or gpt-4-vision-preview).
-        """
+    """Extract PDF images and optionally describe them with a vision LLM."""
+
+    def __init__(self, vision_llm: Any = None) -> None:
         self.vision_llm = vision_llm
 
-    def _get_image_description(self, image_bytes: bytes, image_ext: str) -> str:
-        if not self.vision_llm:
-            return "Vision LLM not configured."
-            
-        if not LANGCHAIN_AVAILABLE:
-            return "Langchain not available for Vision LLM."
+    @staticmethod
+    def _response_text(response: Any) -> str:
+        content = getattr(response, "content", response)
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for block in content:
+                if isinstance(block, str):
+                    parts.append(block)
+                elif isinstance(block, dict) and isinstance(block.get("text"), str):
+                    parts.append(block["text"])
+            return "\n".join(parts).strip()
+        return str(content)
 
-        base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        mime_type = f"image/{image_ext}" if image_ext != "jpg" else "image/jpeg"
-        
+    def _get_image_description(self, image_bytes: bytes, image_ext: str) -> str:
+        if not isinstance(image_bytes, bytes) or not image_bytes:
+            raise ValueError("image_bytes must contain image data.")
+        if not self.vision_llm or not LANGCHAIN_AVAILABLE:
+            return "Vision LLM not configured."
+
+        extension = image_ext.lower().lstrip(".")
+        mime_type = "image/jpeg" if extension in {"jpg", "jpeg"} else f"image/{extension}"
+        encoded = base64.b64encode(image_bytes).decode("ascii")
         message = HumanMessage(
             content=[
-                {"type": "text", "text": "Describe this image in detail. Focus on any charts, graphs, text, or key visual information."},
+                {
+                    "type": "text",
+                    "text": (
+                        "Describe this image factually. Focus on charts, graphs, visible text, "
+                        "tables, and other information useful for document retrieval."
+                    ),
+                },
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{base64_image}"
-                    },
+                    "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
                 },
             ]
         )
         try:
-            response = self.vision_llm.invoke([message])
-            return response.content
-        except Exception as e:
-            logger.error(f"Error calling Vision LLM: {e}")
-            return f"Error analyzing image: {e}"
+            return self._response_text(self.vision_llm.invoke([message]))
+        except Exception:
+            logger.exception("Vision LLM failed for extracted image")
+            raise
 
-    def extract_and_describe_images(self, file_path: Path) -> List[Dict[str, Any]]:
-        """
-        Finds images in the document and returns their visual descriptions.
-        """
-        logger.info(f"Extracting images from {file_path.name} for Multi-Modal analysis")
-        
-        extracted_data = []
-        
+    def extract_and_describe_images(self, file_path: Path) -> list[dict[str, Any]]:
+        if not isinstance(file_path, Path):
+            file_path = Path(file_path)
+        if not file_path.is_file():
+            raise FileNotFoundError(file_path)
         if not PYMUPDF_AVAILABLE:
-            logger.warning("PyMuPDF (fitz) is not available. Returning empty image descriptions.")
-            return extracted_data
-            
-        if file_path.suffix.lower() == ".pdf":
-            try:
-                doc = fitz.open(file_path)
-                for page_num in range(len(doc)):
-                    page = doc.load_page(page_num)
-                    image_list = page.get_images(full=True)
-                    
-                    for img_index, img in enumerate(image_list):
-                        xref = img[0]
-                        base_image = doc.extract_image(xref)
-                        image_bytes = base_image["image"]
-                        image_ext = base_image["ext"]
-                        
+            logger.warning("PyMuPDF is unavailable; no PDF images can be extracted.")
+            return []
+        if file_path.suffix.lower() != ".pdf":
+            return []
+
+        extracted_data: list[dict[str, Any]] = []
+        try:
+            with fitz.open(file_path) as document:
+                for page_num, page in enumerate(document, start=1):
+                    for image_index, image in enumerate(page.get_images(full=True)):
+                        base_image = document.extract_image(image[0])
+                        image_bytes = base_image.get("image")
+                        image_ext = base_image.get("ext", "bin")
+                        if not isinstance(image_bytes, bytes):
+                            continue
                         description = self._get_image_description(image_bytes, image_ext)
-                        
-                        extracted_data.append({
-                            "image_id": f"page_{page_num+1}_img_{img_index}",
-                            "page_number": page_num + 1,
-                            "description": description,
-                            "extension": image_ext
-                        })
-            except Exception as e:
-                logger.error(f"Error extracting images from PDF {file_path}: {e}")
-                
-        else:
-            # For other file types, one might use different extraction logic
-            logger.info(f"Image extraction for non-PDF files ({file_path.suffix}) not fully implemented yet.")
-            
+                        extracted_data.append(
+                            {
+                                "image_id": f"page_{page_num}_img_{image_index}",
+                                "page_number": page_num,
+                                "description": description,
+                                "extension": image_ext,
+                            }
+                        )
+        except Exception:
+            logger.exception("Image extraction failed for %s", file_path)
+            raise
         return extracted_data
