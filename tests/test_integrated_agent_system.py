@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import asyncio
 
+from backend.orchestration.execution_contract import extract_text
 from backend.orchestration.integrated_agent_system import IntegratedAsyncAgenticAiSystem
 
 
 class TextResponse:
     text = "grounded answer"
+
+
+class NestedResponse:
+    response = TextResponse()
 
 
 class FakeIntegratedSystem:
@@ -20,6 +25,10 @@ def test_response_contract_preserves_retriever_metadata() -> None:
     result = FakeIntegratedSystem().get_response_contract(TextResponse())
     assert result.response_text == "grounded answer"
     assert result.response_metadata == ["doc-1"]
+
+
+def test_integrated_runtime_uses_execution_contract_text_normalizer() -> None:
+    assert IntegratedAsyncAgenticAiSystem._extract_response_text(NestedResponse()) == extract_text(NestedResponse())
 
 
 def test_stream_collection_uses_runtime_boundary() -> None:

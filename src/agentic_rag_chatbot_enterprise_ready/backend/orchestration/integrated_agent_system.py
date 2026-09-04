@@ -8,7 +8,7 @@ from backend.llm_loader import load_llm
 from backend.orchestration.agent_builder import build_agent
 from backend.orchestration.agentic_ai_system_runtime import AsyncAgenticAiSystem, logger
 from backend.orchestration.component_runtime import build_graph_rag, build_reranker
-from backend.orchestration.execution_contract import AgentResponse
+from backend.orchestration.execution_contract import AgentResponse, extract_text
 from backend.orchestration.graph_rag import GraphRAGSystem
 from backend.orchestration.provider_boundaries import build_retriever, build_structured_query_engine
 from backend.orchestration.reranker import initialize_reranker
@@ -32,6 +32,11 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
     @staticmethod
     def _validate_top_k(value: int) -> int:
         return validate_top_k(value)
+
+    @staticmethod
+    def _extract_response_text(response: Any) -> str:
+        """Use the execution contract as the single response-text normalizer."""
+        return extract_text(response)
 
     def _refresh_runtime_boundary(self) -> None:
         self.runtime_boundary = AgentRuntimeBoundary(
