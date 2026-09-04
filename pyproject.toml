@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.24"
+version = "0.2.25"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -27,7 +27,7 @@ dependencies = [
   "azure-search-documents==12.0.0",
   "azure-ai-projects==2.5.0",
   "openai>=3.0.0,<4",
-  "pandas==3.0.5",
+  "pandas>=2.2.0,<2.3.0",
   "python-dotenv==1.2.3",
   "httpx==0.28.1",
   "requests>=2.32.0,<3",
