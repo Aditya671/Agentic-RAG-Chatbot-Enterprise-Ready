@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.18] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.indexer.index_engine` to the canonical Azure AI Search/LlamaIndex initializer.
+- Reduced `index_engine_upgraded.py` to a compatibility import with no duplicate provider implementation.
+- Preserved explicit sync/async Azure Search clients, index-management modes, schema compatibility, validation, and client lifecycle behavior.
+- Removed the migration-era index-engine regression suite and upgrade report.
+- Updated maintained indexer boundary tests to assert canonical ownership and compatibility direction.
+
+---
+
 ## [0.2.17] - 2026-09-04
 
 ### Changed
