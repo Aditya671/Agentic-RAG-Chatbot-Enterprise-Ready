@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.17] - 2026-09-04
+
+### Changed
+
+- Removed the obsolete `runtime_components.py` implementation, which still carried the retired code-interpreter construction surface.
+- Consolidated optional reranker and GraphRAG construction on `component_runtime.py`.
+- Removed the obsolete runtime-components regression suite.
+- Removed the first-generation orchestration upgrade report; maintained regression coverage now lives under `tests/`.
+- Removed the retired code-interpreter builder from the public orchestration package exports.
+
+---
+
 ## [0.2.16] - 2026-09-04
 
 ### Changed
@@ -57,7 +69,7 @@ All notable changes to this project will be documented in this file. This projec
 - Added GPT-5.6 as an opt-in supported model without changing the GPT-5.1 application default.
 - Separated model context-window limits from maximum output-token limits.
 - Added explicit reasoning capability metadata, normalization, accessors, and validation.
-- Moved model-registry regression coverage into the maintained top-level test suite.
+- Moved model-registry regression coverage into the maintained top-level `tests/` suite.
 - Removed the duplicate `llm_models_upgraded.py` implementation and its migration-era test/report.
 
 ---
