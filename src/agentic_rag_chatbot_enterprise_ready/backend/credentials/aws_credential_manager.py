@@ -1,13 +1,4 @@
-"""AWS credential and Secrets Manager access.
-
-The manager intentionally relies on Boto3's default credential provider chain:
-environment variables, shared AWS configuration/profiles, and workload
-credentials such as IAM roles. It never stores or constructs long-lived AWS
-credentials itself.
-
-Secrets may be resolved from an environment variable first and, when a
-Secrets Manager secret is configured, from AWS Secrets Manager as a fallback.
-"""
+"""AWS credential and Secrets Manager access."""
 
 from __future__ import annotations
 
@@ -19,7 +10,6 @@ from typing import Optional
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
-from botocore.session import Session as BotocoreSession
 
 DEFAULT_REGION = "us-east-1"
 DEFAULT_CACHE_TTL_SECONDS = 0
@@ -45,16 +35,7 @@ class _CachedSecret:
 class AWSCredentialManager:
     """Resolve AWS credentials and retrieve application secrets safely."""
 
-    def __init__(
-        self,
-        secret_name: Optional[str] = None,
-        region_name: str = DEFAULT_REGION,
-        *,
-        cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS,
-        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-        connect_timeout: int = DEFAULT_CONNECT_TIMEOUT_SECONDS,
-        read_timeout: int = DEFAULT_READ_TIMEOUT_SECONDS,
-    ) -> None:
+    def __init__(self, secret_name: Optional[str] = None, region_name: str = DEFAULT_REGION, *, cache_ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS, max_attempts: int = DEFAULT_MAX_ATTEMPTS, connect_timeout: int = DEFAULT_CONNECT_TIMEOUT_SECONDS, read_timeout: int = DEFAULT_READ_TIMEOUT_SECONDS) -> None:
         self.secret_name = self._validate_optional_name(secret_name)
         self.region_name = self._validate_region(region_name)
         self.cache_ttl_seconds = self._validate_non_negative_int(cache_ttl_seconds, "cache_ttl_seconds")
@@ -97,26 +78,15 @@ class AWSCredentialManager:
             session = boto3.session.Session()
             credentials = session.get_credentials()
         except (NoCredentialsError, PartialCredentialsError) as exc:
-            raise AWSCredentialError(
-                "No valid AWS credentials found. Configure an AWS profile, "
-                "environment credentials, or an AWS workload identity/role."
-            ) from exc
-
+            raise AWSCredentialError("No valid AWS credentials found. Configure an AWS profile, environment credentials, or an AWS workload identity/role.") from exc
         if credentials is None:
-            raise AWSCredentialError(
-                "No valid AWS credentials found. Configure an AWS profile, "
-                "environment credentials, or an AWS workload identity/role."
-            )
+            raise AWSCredentialError("No valid AWS credentials found. Configure an AWS profile, environment credentials, or an AWS workload identity/role.")
         return session
 
     def get_client(self):
         """Create a configured Secrets Manager client."""
         session = self.get_session()
-        config = Config(
-            retries={"mode": "standard", "max_attempts": self.max_attempts},
-            connect_timeout=self.connect_timeout,
-            read_timeout=self.read_timeout,
-        )
+        config = Config(retries={"mode": "standard", "max_attempts": self.max_attempts}, connect_timeout=self.connect_timeout, read_timeout=self.read_timeout)
         return session.client(service_name="secretsmanager", region_name=self.region_name, config=config)
 
     def _get_cached_secret(self, secret_name: str) -> Optional[str]:
@@ -133,10 +103,7 @@ class AWSCredentialManager:
     def _cache_secret(self, secret_name: str, value: str) -> None:
         if self.cache_ttl_seconds <= 0:
             return
-        self._secret_cache[secret_name] = _CachedSecret(
-            value=value,
-            expires_at=time.monotonic() + self.cache_ttl_seconds,
-        )
+        self._secret_cache[secret_name] = _CachedSecret(value=value, expires_at=time.monotonic() + self.cache_ttl_seconds)
 
     def clear_cache(self, secret_name: Optional[str] = None) -> None:
         """Clear one cached secret or the complete in-process secret cache."""
@@ -176,18 +143,14 @@ class AWSCredentialManager:
                 raise AWSSecretError(f"Secret '{secret_name}' not found in AWS Secrets Manager.") from exc
             if code in {"AccessDeniedException", "AccessDenied"}:
                 raise AWSSecretError("Access denied while retrieving the configured AWS secret.") from exc
-            raise AWSSecretError(
-                f"AWS Secrets Manager failed to retrieve secret '{secret_name}' ({code})."
-            ) from exc
+            raise AWSSecretError(f"AWS Secrets Manager failed to retrieve secret '{secret_name}' ({code}).") from exc
         value = self._decode_secret_response(response)
         self._cache_secret(secret_name, value)
         return value
 
     def get_secret(self, secret_name: Optional[str] = None) -> str:
         """Retrieve a secret from the environment or Secrets Manager."""
-        resolved_name = self._validate_optional_name(
-            self.secret_name if secret_name is None else secret_name
-        )
+        resolved_name = self._validate_optional_name(self.secret_name if secret_name is None else secret_name)
         if not resolved_name:
             raise ValueError("No secret name provided.")
         environment_secret = os.environ.get(resolved_name)
@@ -197,7 +160,5 @@ class AWSCredentialManager:
         if cached_secret is not None:
             return cached_secret
         if self.client is None:
-            raise AWSSecretError(
-                f"Secret '{resolved_name}' not found in environment variables or AWS Secrets Manager."
-            )
+            raise AWSSecretError(f"Secret '{resolved_name}' not found in environment variables or AWS Secrets Manager.")
         return self._get_secret_from_aws(resolved_name)
