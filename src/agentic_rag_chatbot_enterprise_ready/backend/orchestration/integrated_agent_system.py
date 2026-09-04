@@ -22,7 +22,6 @@ class IntegratedAsyncAgenticAiSystem(AsyncAgenticAiSystem):
     """Compatibility agent whose runtime path uses explicit provider seams."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        kwargs.pop("enable_coding_assistant", None)
         similarity_top_k = validate_top_k(kwargs.get("similarity_top_k", 20))
         self.runtime_boundary = AgentRuntimeBoundary(RetrievalConfig(top_k=similarity_top_k))
         super().__init__(*args, **kwargs)
