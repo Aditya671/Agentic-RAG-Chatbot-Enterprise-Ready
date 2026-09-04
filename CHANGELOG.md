@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.25] - 2026-09-04
+
+### Fixed
+
+- Aligned the direct pandas dependency with `llama-index-experimental==0.6.6`, which requires `pandas<2.3.0`.
+- Replaced the incompatible `pandas==3.0.5` constraint with `pandas>=2.2.0,<2.3.0` so the project's declared dependency graph can be resolved by pip.
+- Kept the existing `StructuredQueryEngine` adapter and PandasQueryEngine functionality intact; this is a dependency-compatibility correction, not a structured-query redesign.
+
+---
+
 ## [0.2.24] - 2026-09-04
 
 ### Changed
