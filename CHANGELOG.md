@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.23] - 2026-09-04
+
+### Changed
+
+- Promoted `backend.indexer.user_uploaded_file_indexer` to the canonical maintained `UserUploadedFileIndexer` implementation.
+- Removed the duplicate `user_uploaded_file_indexer_upgraded.py` runtime implementation.
+- Preserved the established public import paths and worker-local Celery construction.
+- Preserved hash/version-aware reindex decisions, path safety, metadata persistence, vector/summary indexing, querying, and optional Azure Blob backup.
+- Explicitly documented that current per-file skip/reindex behavior is not yet a proof of artifact-level idempotency for retry/redelivery.
+- Moved maintained indexer boundary coverage to the top-level `tests/` suite.
+- Removed the migration-era indexer test and upgrade report from `src/`.
+
+---
+
 ## [0.2.22] - 2026-09-04
 
 ### Changed
