@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.2"
+version = "0.2.3"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -37,7 +37,6 @@ dependencies = [
   "botocore>=1.42.0,<2",
   "pymongo>=4.15.0,<5",
   "motor>=3.7.0,<4",
-  "nest-asyncio>=1.6.0,<2",
   "PyYAML>=6.0.2,<7",
 ]
 
@@ -66,8 +65,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests", "src"]
+testpaths = ["tests"]
 addopts = "-ra"
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
