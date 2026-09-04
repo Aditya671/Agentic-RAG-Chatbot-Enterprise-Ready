@@ -8,11 +8,11 @@ from llama_index.core.agent.workflow import FunctionAgent
 
 from backend.orchestration.provider_boundaries import build_retriever
 from backend.orchestration.tool_factory import build_function_tool, build_retriever_tool
-from backend.prompts import AGENTIC_AI_CODEX_PROMPT, AGENTIC_AI_SYSTEM_PROMPT
+from backend.prompts import AGENTIC_AI_SYSTEM_PROMPT
 
 
 def build_agent(system: Any) -> FunctionAgent:
-    """Build the integrated agent from application policy and public tools."""
+    """Build the integrated agent from application policy and supported tools."""
     retrieval = system.runtime_boundary.retrieval
     retriever_kwargs: dict[str, Any] = {}
     if system.reranker:
@@ -60,15 +60,6 @@ def build_agent(system: Any) -> FunctionAgent:
             )
         )
 
-    if system.enable_coding_assistant and system.code_interpreter:
-        tools.append(
-            build_function_tool(
-                system.code_interpreter.run_python,
-                "code_interpreter_tool",
-                "Execute Python code in the configured isolated sandbox.",
-            )
-        )
-
     if system.csv_engine is not None:
         tools.append(
             build_function_tool(
@@ -78,11 +69,9 @@ def build_agent(system: Any) -> FunctionAgent:
             )
         )
 
-    system_prompt = (
-        AGENTIC_AI_CODEX_PROMPT
-        if system.enable_coding_assistant
-        else AGENTIC_AI_SYSTEM_PROMPT
-    ).format(now_str=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    system_prompt = AGENTIC_AI_SYSTEM_PROMPT.format(
+        now_str=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    )
 
     return FunctionAgent(
         tools=tools,
