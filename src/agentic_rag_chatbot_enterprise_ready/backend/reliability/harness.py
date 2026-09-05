@@ -78,6 +78,7 @@ class HarnessEngine:
         try:
             raw = await executor(case.question)
             response_text = self._extract_text(raw)
+            self._record_events(trace, raw)
             self._record_evidence(trace, raw)
             evaluation = ScenarioEvaluationEngine.evaluate(case, trace, response_text)
             failures = evaluation.failures
@@ -138,6 +139,14 @@ class HarnessEngine:
             if result is not None:
                 return str(result)
         return str(value)
+
+    @staticmethod
+    def _record_events(trace: ExecutionTrace, value: Any) -> None:
+        raw_events = value.get("events", ()) if isinstance(value, dict) else getattr(value, "events", ())
+        for event in raw_events or ():
+            if not isinstance(event, ExecutionEvent):
+                raise TypeError("executor events must contain ExecutionEvent instances")
+            trace.add_event(event)
 
     @staticmethod
     def _record_evidence(trace: ExecutionTrace, value: Any) -> None:
