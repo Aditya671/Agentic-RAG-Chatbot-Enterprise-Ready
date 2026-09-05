@@ -18,7 +18,7 @@ Dataset
 │   ├── expected capabilities
 │   ├── expected claims
 │   ├── expected claim → evidence relationships
-│   └── fixture references
+│   └── fixture references: (fixture_id, fixture_version)
 └── Evidence Fixture
     ├── fixture identity + version
     ├── immutable EvidenceRecord collection
@@ -39,7 +39,7 @@ A scenario can declare:
 - difficulty: `basic`, `standard`, `advanced`, `failure`, or `recovery`;
 - tags for controlled grouping;
 - expected capabilities such as retrieval or grounding;
-- fixture IDs that define the evidence available to the scenario;
+- versioned fixture references as `(fixture_id, fixture_version)` pairs;
 - expected claims and their required evidence;
 - expected claim/evidence relationships;
 - arbitrary descriptive metadata.
@@ -53,7 +53,7 @@ The underlying `HarnessCase` remains the source of deterministic response/eviden
 This creates an explicit evidence boundary:
 
 ```text
-scenario → fixture reference → evidence records
+scenario → fixture@version → evidence records
 ```
 
 Benchmark architectures should consume only the evidence made available by the benchmark dataset. Fixtures are not generated during an individual architecture run, which prevents one architecture from silently receiving different benchmark inputs.
@@ -76,13 +76,13 @@ These relationships describe the benchmark expectation. They do not claim that t
 
 ## Dataset boundary
 
-`BenchmarkDataset` binds scenarios to the fixture IDs they reference.
+`BenchmarkDataset` binds scenarios to the exact fixture versions they reference.
 
 Construction rejects:
 
 - duplicate scenario/version identities;
 - duplicate fixture/version identities;
-- scenario references to unknown fixtures;
+- scenario references to unknown fixture versions;
 - invalid scenario or fixture types.
 
 This makes the dataset a self-contained input boundary rather than a loose collection of test helpers.
