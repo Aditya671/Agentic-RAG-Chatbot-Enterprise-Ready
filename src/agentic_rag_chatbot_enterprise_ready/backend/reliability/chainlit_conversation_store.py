@@ -27,13 +27,17 @@ class ChainlitConversationStore:
             stored_actor = existing.get("userId")
             if stored_actor is not None and str(stored_actor) != actor_id:
                 raise PermissionError("conversation belongs to a different actor")
+            stored_metadata = dict(existing.get("metadata") or {})
+            stored_session = str(stored_metadata.get("session_id") or session_id)
+            if stored_session != session_id:
+                raise PermissionError("conversation belongs to a different session")
             return Conversation(
                 conversation_id,
                 actor_id,
-                session_id,
+                stored_session,
                 str(existing.get("createdAt") or ""),
                 str(existing.get("updatedAt") or existing.get("createdAt") or ""),
-                dict(existing.get("metadata") or {}),
+                stored_metadata,
             )
         await self.data_layer.update_thread(
             conversation_id,
@@ -45,7 +49,12 @@ class ChainlitConversationStore:
     async def append_message(self, message: ConversationMessage) -> ConversationMessage:
         if not isinstance(message, ConversationMessage):
             raise TypeError("message must be a ConversationMessage")
-        await self.ensure_conversation(message.conversation_id, message.actor_id, message.metadata.get("session_id", "unknown"))
+        thread = await self.data_layer.get_thread(message.conversation_id)
+        if thread is None:
+            raise KeyError("conversation does not exist")
+        stored_actor = thread.get("userId")
+        if stored_actor is not None and str(stored_actor) != message.actor_id:
+            raise PermissionError("message actor does not own conversation")
         await self.data_layer.create_step({
             "id": message.message_id,
             "threadId": message.conversation_id,
