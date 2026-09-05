@@ -22,15 +22,15 @@ from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace,
 from .durable_store import JsonlReliabilityStore
 from .evaluation import EvaluationEngine, EvaluationResult
 from .harness import HarnessCase, HarnessEngine, HarnessResult, ScenarioCatalog
-from .monitoring import HealthSnapshot, MonitoringEngine
 from .observability import AgentObservability
+from .observability_service import ObservabilityService, TraceInspection, TraceQuery
 from .regression_promotion import (
     RegressionPromotionEngine,
     RegressionProposal,
     ReviewDecision,
     ReviewedRegression,
 )
-from .retrospective import Retrospective, RetrospectiveEngine
+from .retrospective import HealthSnapshot, MonitoringEngine, Retrospective, RetrospectiveEngine
 from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationResult
 from .store import InMemoryReliabilityStore
 
@@ -39,6 +39,7 @@ __all__ = [
     "Evidence", "EvidenceRecord", "ExecutionEvent", "ExecutionTrace", "ProvenanceRecord", "JsonlReliabilityStore",
     "EvaluationEngine", "EvaluationResult", "ScenarioEvaluationEngine", "ScenarioEvaluationResult",
     "HarnessCase", "HarnessEngine", "HarnessResult", "ScenarioCatalog", "HealthSnapshot", "MonitoringEngine",
+    "ObservabilityService", "TraceInspection", "TraceQuery",
     "RegressionProposal", "RegressionPromotionEngine", "ReviewDecision", "ReviewedRegression",
     "Retrospective", "RetrospectiveEngine", "InMemoryReliabilityStore",
     "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec",
