@@ -46,7 +46,7 @@ def _scenario() -> BenchmarkScenario:
             expected_evidence_source_ids=("annual-report",),
         ),
         expected_capabilities=("retrieval", "grounding"),
-        fixture_ids=("finance-baseline",),
+        fixture_refs=(("finance-baseline", "1.0"),),
         expected_claims=(
             Claim(
                 claim_id="claim-1",
@@ -71,8 +71,8 @@ def test_dataset_keeps_scenario_and_fixture_versions_isolated() -> None:
         fixtures=(_fixture(),),
     )
 
-    assert dataset.scenario("revenue-001", "1.0").fixture_ids == ("finance-baseline",)
-    assert dataset.fixture("finance-baseline").version == "1.0"
+    assert dataset.scenario("revenue-001", "1.0").fixture_refs == (("finance-baseline", "1.0"),)
+    assert dataset.fixture("finance-baseline", "1.0").version == "1.0"
     assert dataset.to_dict()["scenarios"][0]["expected_claims"][0]["claim_id"] == "claim-1"
 
 
@@ -82,7 +82,7 @@ def test_dataset_rejects_unknown_fixture_reference() -> None:
         scenario_id=scenario.scenario_id,
         version=scenario.version,
         case=scenario.case,
-        fixture_ids=("missing-fixture",),
+        fixture_refs=(("missing-fixture", "1.0"),),
     )
 
     with pytest.raises(ValueError, match="unknown fixtures"):
