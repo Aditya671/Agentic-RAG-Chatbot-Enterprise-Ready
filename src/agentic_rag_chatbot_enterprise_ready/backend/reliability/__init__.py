@@ -8,6 +8,14 @@ from .benchmark import (
     BenchmarkContext,
     BenchmarkMetrics,
 )
+from .benchmark_config import BenchmarkConfig
+from .benchmark_scenarios import (
+    BenchmarkDataset,
+    BenchmarkEvidenceFixture,
+    BenchmarkFixtureCatalog,
+    BenchmarkScenario,
+    BenchmarkScenarioCatalog,
+)
 from .claims import Claim, ClaimEvidenceLink, ClaimGroundingEvaluator, GroundingResult
 from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
 from .durable_store import JsonlReliabilityStore
@@ -52,6 +60,7 @@ __all__ = [
     "ReviewDecision",
     "ReviewedRegression",
     "Retrospective",
+    "RetrospectiveEngine",
     "InMemoryReliabilityStore",
     "ArchitectureAggregate",
     "ArchitectureBenchmark",
@@ -59,4 +68,10 @@ __all__ = [
     "ArchitectureSpec",
     "BenchmarkContext",
     "BenchmarkMetrics",
+    "BenchmarkConfig",
+    "BenchmarkDataset",
+    "BenchmarkEvidenceFixture",
+    "BenchmarkFixtureCatalog",
+    "BenchmarkScenario",
+    "BenchmarkScenarioCatalog",
 ]
