@@ -1,5 +1,13 @@
 """Provider-neutral reliability primitives for agent execution."""
 
+from .benchmark import (
+    ArchitectureAggregate,
+    ArchitectureBenchmark,
+    ArchitectureBenchmarkRun,
+    ArchitectureSpec,
+    BenchmarkContext,
+    BenchmarkMetrics,
+)
 from .claims import Claim, ClaimEvidenceLink, ClaimGroundingEvaluator, GroundingResult
 from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
 from .durable_store import JsonlReliabilityStore
@@ -44,6 +52,11 @@ __all__ = [
     "ReviewDecision",
     "ReviewedRegression",
     "Retrospective",
-    "RetrospectiveEngine",
     "InMemoryReliabilityStore",
+    "ArchitectureAggregate",
+    "ArchitectureBenchmark",
+    "ArchitectureBenchmarkRun",
+    "ArchitectureSpec",
+    "BenchmarkContext",
+    "BenchmarkMetrics",
 ]
