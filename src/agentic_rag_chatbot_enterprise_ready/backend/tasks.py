@@ -173,7 +173,9 @@ def index_files_task(
         raise ValueError("artifact_ids do not match the current file content identities.")
 
     task_id = str(getattr(getattr(self, "request", None), "id", ""))
-    idempotency_keys = [artifact_idempotency_key(identity) for identity in identities]
+    idempotency_keys = [
+        artifact_idempotency_key(identity, scope=index_name) for identity in identities
+    ]
 
     logger.info(
         "Starting uploaded-file indexing: task_id=%s run_id=%s files=%d index=%s "
