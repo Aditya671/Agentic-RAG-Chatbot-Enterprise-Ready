@@ -7,6 +7,8 @@ An enterprise-oriented Agentic RAG application and agent-engineering workbench f
 ### Agentic RAG application
 - conversational interaction through the maintained frontend;
 - document upload and indexing;
+- asynchronous indexing through the maintained Celery task boundary;
+- stable artifact identity and explicit background-task correlation;
 - Azure AI Search / LlamaIndex retrieval boundaries;
 - structured CSV analysis through bounded deterministic operations;
 - provider-neutral conversation persistence with existing Cosmos DB / MongoDB data-layer boundaries;
@@ -33,7 +35,7 @@ Reviewed Regression
 Claim → Evidence Grounding
 ```
 
-The current implemented frontier is **Phase 72 — Persistence & Conversation State**. The next planned capability is **Phase 73 — Background Processing & Idempotency**.
+The current implemented frontier is **Phase 73 — Background Processing & Idempotency**. The next planned capability is **Phase 74 — Frontend / API Integration**.
 
 ## Reliability capabilities
 
@@ -50,7 +52,9 @@ The maintained reliability package includes:
 - durable reliability storage;
 - claim/evidence grounding evaluation;
 - deterministic end-to-end RAG scenarios;
-- provider-neutral conversation/message persistence.
+- provider-neutral conversation/message persistence;
+- background task and artifact identity contracts;
+- deterministic idempotency keys and failure classification.
 
 These components are designed to remain provider-neutral and testable without requiring live cloud services.
 
@@ -63,6 +67,7 @@ These components are designed to remain provider-neutral and testable without re
 5. **Reproducible evaluation.** Known scenarios should be replayable so architectural changes can be compared rather than guessed at.
 6. **No arbitrary code execution.** The retired remote sandbox/code-interpreter capability remains out of scope.
 7. **Provider boundaries.** Cloud SDKs and infrastructure integrations stay behind explicit application contracts.
+8. **Idempotency before retries.** Background work must have stable artifact identity and safe duplicate semantics before automatic retries are enabled.
 
 ## Development roadmap
 
@@ -77,8 +82,8 @@ Current direction:
 70     Retrieval → Grounded Answer Boundary        ✓
 71     Deterministic End-to-End RAG Journey        ✓
 72     Persistence & Conversation State            ✓
-73     Background Processing & Idempotency         →
-74     Frontend / API Integration
+73     Background Processing & Idempotency         ✓
+74     Frontend / API Integration                  →
 75–77  Enterprise / Production Readiness
 Later  Provider Expansion
 ```
