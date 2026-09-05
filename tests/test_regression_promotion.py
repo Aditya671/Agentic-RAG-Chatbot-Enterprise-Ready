@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from agentic_rag_chatbot_enterprise_ready.backend.reliability import (
-    Evidence,
     HarnessCase,
     RegressionPromotionEngine,
     Retrospective,
