@@ -1,9 +1,10 @@
 """Canonical application runtime boundary for the real user request journey.
 
 The runtime owns request normalization, deterministic capability selection,
-execution lifecycle instrumentation, evidence handoff, and response shaping.
-Provider-specific implementations are injected behind small call contracts so
-this layer does not become coupled to Azure, LlamaIndex, or a particular tool.
+execution lifecycle instrumentation, evidence handoff, response shaping, and
+optional conversation persistence. Provider-specific implementations are
+injected behind small call contracts so this layer does not become coupled to
+Azure, LlamaIndex, or a particular persistence provider.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from inspect import isawaitable
 from typing import Any, Awaitable, Callable, Mapping
 
 from .reliability import AgentObservability, Evidence
+from .reliability.conversation import ConversationService, ConversationStore
 from .reliability.contracts import ExecutionTrace
 
 
@@ -33,6 +35,7 @@ class ApplicationRequest:
     payload: Mapping[str, Any] = field(default_factory=dict)
     session_id: str | None = None
     actor_id: str | None = None
+    conversation_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +55,7 @@ class ApplicationResult:
     metadata: Mapping[str, Any] = field(default_factory=dict)
     evidence: tuple[Evidence, ...] = ()
     run_id: str = ""
+    conversation_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,10 +72,10 @@ Handler = Callable[[ApplicationRequest], Any | Awaitable[Any]]
 class ApplicationRuntime:
     """Single canonical boundary for application execution.
 
-    Handlers may return a string, an ``ApplicationResult``, or a mapping with
-    ``response_text``, optional ``metadata``, and optional ``evidence``.
-    Evidence is validated and recorded through the existing observability
-    layer rather than allowing providers to define their own telemetry model.
+    Conversation persistence is opt-in through ``conversation_store``. When
+    configured, question turns require actor/session/conversation identity,
+    create the conversation if needed, and persist the successful user and
+    assistant messages against the execution run.
     """
 
     def __init__(
@@ -79,9 +83,11 @@ class ApplicationRuntime:
         handlers: Mapping[Capability, Handler],
         *,
         observability: AgentObservability | None = None,
+        conversation_store: ConversationStore | None = None,
     ) -> None:
         self._handlers = dict(handlers)
         self._observability = observability or AgentObservability()
+        self._conversation_store = conversation_store
 
     @staticmethod
     def normalize(request: ApplicationRequest) -> ApplicationRequest:
@@ -94,6 +100,7 @@ class ApplicationRuntime:
             payload=dict(request.payload),
             session_id=request.session_id,
             actor_id=request.actor_id,
+            conversation_id=request.conversation_id,
         )
 
     @staticmethod
@@ -116,10 +123,20 @@ class ApplicationRuntime:
         if handler is None:
             raise ValueError(f"no handler configured for capability: {decision.capability.value}")
 
+        if self._conversation_store is not None and decision.capability is Capability.QUESTION:
+            if not normalized.conversation_id or not normalized.actor_id or not normalized.session_id:
+                raise ValueError("conversation_id, actor_id, and session_id are required when persistence is enabled")
+            await ConversationService(self._conversation_store).ensure(
+                normalized.conversation_id, normalized.actor_id, normalized.session_id
+            )
+
         with self._observability.run(
             session_id=normalized.session_id,
             actor_id=normalized.actor_id,
-            attributes={"capability": decision.capability.value},
+            attributes={
+                "capability": decision.capability.value,
+                "conversation_id": normalized.conversation_id or "",
+            },
         ) as trace:
             self._observability.record_event(
                 trace,
@@ -140,7 +157,19 @@ class ApplicationRuntime:
                     raw = handler(normalized)
                     if isawaitable(raw):
                         raw = await raw
-                result = self._coerce_result(raw, decision.capability, trace)
+                result = self._coerce_result(raw, decision.capability, trace, normalized.conversation_id)
+                if self._conversation_store is not None and decision.capability is Capability.QUESTION:
+                    await ConversationService(self._conversation_store).record_turn(
+                        normalized.conversation_id, normalized.actor_id,
+                        question=normalized.question, answer=result.response_text, run_id=trace.run_id,
+                    )
+                    self._observability.record_event(
+                        trace,
+                        name="conversation.persisted",
+                        phase="persistence",
+                        attributes={"conversation_id": normalized.conversation_id},
+                        status="completed",
+                    )
                 self._observability.record_event(
                     trace,
                     name="response.emitted",
@@ -159,11 +188,18 @@ class ApplicationRuntime:
                 )
                 raise
 
+    async def history(self, conversation_id: str, actor_id: str, *, limit: int = 100):
+        """Return persisted history when a conversation store is configured."""
+        if self._conversation_store is None:
+            raise RuntimeError("conversation persistence is not configured")
+        return await ConversationService(self._conversation_store).history(conversation_id, actor_id, limit=limit)
+
     def _coerce_result(
         self,
         raw: Any,
         capability: Capability,
         trace: ExecutionTrace,
+        conversation_id: str | None,
     ) -> ApplicationResult:
         if isinstance(raw, ApplicationResult):
             response_text = raw.response_text.strip()
@@ -194,7 +230,8 @@ class ApplicationRuntime:
         return ApplicationResult(
             response_text=response_text,
             capability=capability,
-            metadata=metadata,
+            metadata={**metadata, **({"conversation_id": conversation_id} if conversation_id else {})},
             evidence=evidence,
             run_id=trace.run_id,
+            conversation_id=conversation_id,
         )
