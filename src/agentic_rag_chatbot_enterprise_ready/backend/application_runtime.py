@@ -74,38 +74,27 @@ class ApplicationRuntime:
 
     Conversation persistence is opt-in through ``conversation_store``. When
     configured, question turns require actor/session/conversation identity,
-    create the conversation if needed, and persist the successful user and
+    create the conversation if needed, and persist successful user and
     assistant messages against the execution run.
     """
 
-    def __init__(
-        self,
-        handlers: Mapping[Capability, Handler],
-        *,
-        observability: AgentObservability | None = None,
-        conversation_store: ConversationStore | None = None,
-    ) -> None:
+    def __init__(self, handlers: Mapping[Capability, Handler], *, observability: AgentObservability | None = None, conversation_store: ConversationStore | None = None) -> None:
         self._handlers = dict(handlers)
         self._observability = observability or AgentObservability()
         self._conversation_store = conversation_store
 
     @staticmethod
     def normalize(request: ApplicationRequest) -> ApplicationRequest:
-        """Normalize whitespace while preserving payload semantics."""
         if not isinstance(request, ApplicationRequest):
             raise TypeError("request must be an ApplicationRequest")
         return ApplicationRequest(
-            question=" ".join(request.question.split()),
-            capability=request.capability,
-            payload=dict(request.payload),
-            session_id=request.session_id,
-            actor_id=request.actor_id,
-            conversation_id=request.conversation_id,
+            question=" ".join(request.question.split()), capability=request.capability,
+            payload=dict(request.payload), session_id=request.session_id,
+            actor_id=request.actor_id, conversation_id=request.conversation_id,
         )
 
     @staticmethod
     def decide(request: ApplicationRequest) -> CapabilityDecision:
-        """Select a capability from explicit intent, never an LLM guess."""
         request = ApplicationRuntime.normalize(request)
         if request.capability is not None:
             if not isinstance(request.capability, Capability):
@@ -116,7 +105,6 @@ class ApplicationRuntime:
         return CapabilityDecision(Capability.QUESTION, "default question capability")
 
     async def execute(self, request: ApplicationRequest) -> ApplicationExecution:
-        """Execute one request and return both stable result and trace."""
         normalized = self.normalize(request)
         decision = self.decide(normalized)
         handler = self._handlers.get(decision.capability)
@@ -130,28 +118,10 @@ class ApplicationRuntime:
                 normalized.conversation_id, normalized.actor_id, normalized.session_id
             )
 
-        with self._observability.run(
-            session_id=normalized.session_id,
-            actor_id=normalized.actor_id,
-            attributes={
-                "capability": decision.capability.value,
-                "conversation_id": normalized.conversation_id or "",
-            },
-        ) as trace:
-            self._observability.record_event(
-                trace,
-                name="request.normalized",
-                phase="normalization",
-                attributes={"question_present": bool(normalized.question)},
-                status="completed",
-            )
-            self._observability.record_event(
-                trace,
-                name="capability.selected",
-                phase="decision",
-                attributes={"capability": decision.capability.value, "reason": decision.reason},
-                status="completed",
-            )
+        with self._observability.run(session_id=normalized.session_id, actor_id=normalized.actor_id, attributes={"capability": decision.capability.value, "conversation_id": normalized.conversation_id or ""}) as trace:
+            trace.conversation_id = normalized.conversation_id
+            self._observability.record_event(trace, name="request.normalized", phase="normalization", attributes={"question_present": bool(normalized.question)}, status="completed")
+            self._observability.record_event(trace, name="capability.selected", phase="decision", attributes={"capability": decision.capability.value, "reason": decision.reason}, status="completed")
             try:
                 with self._observability.phase(trace, "capability.execute", "execution"):
                     raw = handler(normalized)
@@ -159,79 +129,34 @@ class ApplicationRuntime:
                         raw = await raw
                 result = self._coerce_result(raw, decision.capability, trace, normalized.conversation_id)
                 if self._conversation_store is not None and decision.capability is Capability.QUESTION:
-                    await ConversationService(self._conversation_store).record_turn(
-                        normalized.conversation_id, normalized.actor_id,
-                        question=normalized.question, answer=result.response_text, run_id=trace.run_id,
-                    )
-                    self._observability.record_event(
-                        trace,
-                        name="conversation.persisted",
-                        phase="persistence",
-                        attributes={"conversation_id": normalized.conversation_id},
-                        status="completed",
-                    )
-                self._observability.record_event(
-                    trace,
-                    name="response.emitted",
-                    phase="response",
-                    attributes={"response_length": len(result.response_text)},
-                    status="completed",
-                )
+                    await ConversationService(self._conversation_store).record_turn(normalized.conversation_id, normalized.actor_id, question=normalized.question, answer=result.response_text, run_id=trace.run_id)
+                    self._observability.record_event(trace, name="conversation.persisted", phase="persistence", attributes={"conversation_id": normalized.conversation_id}, status="completed")
+                self._observability.record_event(trace, name="response.emitted", phase="response", attributes={"response_length": len(result.response_text)}, status="completed")
                 return ApplicationExecution(result=result, trace=trace)
             except Exception as exc:
-                self._observability.record_event(
-                    trace,
-                    name="execution.error",
-                    phase="execution",
-                    status="error",
-                    attributes={"error": type(exc).__name__},
-                )
+                self._observability.record_event(trace, name="execution.error", phase="execution", status="error", attributes={"error": type(exc).__name__})
                 raise
 
     async def history(self, conversation_id: str, actor_id: str, *, limit: int = 100):
-        """Return persisted history when a conversation store is configured."""
         if self._conversation_store is None:
             raise RuntimeError("conversation persistence is not configured")
         return await ConversationService(self._conversation_store).history(conversation_id, actor_id, limit=limit)
 
-    def _coerce_result(
-        self,
-        raw: Any,
-        capability: Capability,
-        trace: ExecutionTrace,
-        conversation_id: str | None,
-    ) -> ApplicationResult:
+    def _coerce_result(self, raw: Any, capability: Capability, trace: ExecutionTrace, conversation_id: str | None) -> ApplicationResult:
         if isinstance(raw, ApplicationResult):
-            response_text = raw.response_text.strip()
-            metadata = dict(raw.metadata)
-            evidence = tuple(raw.evidence)
+            response_text, metadata, evidence = raw.response_text.strip(), dict(raw.metadata), tuple(raw.evidence)
         elif isinstance(raw, str):
-            response_text = raw.strip()
-            metadata = {}
-            evidence = ()
+            response_text, metadata, evidence = raw.strip(), {}, ()
         elif isinstance(raw, Mapping):
             response_text = str(raw.get("response_text", "")).strip()
             metadata = dict(raw.get("metadata", {}))
             evidence = tuple(raw.get("evidence", ()))
         else:
             raise TypeError("handler must return str, ApplicationResult, or a mapping")
-
         if not response_text:
             raise ValueError("handler returned an empty response")
         for item in evidence:
             if not isinstance(item, Evidence):
                 raise TypeError("handler evidence must contain Evidence objects")
-            self._observability.record_evidence(
-                trace,
-                item,
-                operation="application.retrieve",
-                provider=str(item.metadata.get("provider")) if item.metadata.get("provider") else None,
-            )
-        return ApplicationResult(
-            response_text=response_text,
-            capability=capability,
-            metadata={**metadata, **({"conversation_id": conversation_id} if conversation_id else {})},
-            evidence=evidence,
-            run_id=trace.run_id,
-            conversation_id=conversation_id,
-        )
+            self._observability.record_evidence(trace, item, operation="application.retrieve", provider=str(item.metadata.get("provider")) if item.metadata.get("provider") else None)
+        return ApplicationResult(response_text=response_text, capability=capability, metadata={**metadata, **({"conversation_id": conversation_id} if conversation_id else {})}, evidence=evidence, run_id=trace.run_id, conversation_id=conversation_id)
