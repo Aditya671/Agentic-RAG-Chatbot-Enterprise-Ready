@@ -40,6 +40,7 @@ from .retrospective import (
     RetrospectiveFinding,
     RetrospectiveRecommendation,
 )
+from .retrieval import RetrievalResult, RetrievalService
 from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationResult
 from .store import InMemoryReliabilityStore
 
@@ -51,8 +52,8 @@ __all__ = [
     "ObservabilityService", "TraceInspection", "TraceQuery",
     "RegressionProposal", "RegressionPromotionEngine", "ReviewDecision", "ReviewedRegression",
     "ObservedFact", "Retrospective", "RetrospectiveEngine", "RetrospectiveFinding", "RetrospectiveRecommendation",
-    "InMemoryReliabilityStore",
-    "DocumentIngestionService", "IngestionArtifact", "IngestionResult",
+    "InMemoryReliabilityStore", "DocumentIngestionService", "IngestionArtifact", "IngestionResult",
+    "RetrievalResult", "RetrievalService",
     "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec",
     "BenchmarkContext", "BenchmarkMetrics", "BenchmarkConfig", "BenchmarkReport", "BenchmarkReporter",
     "ArchitectureComparison", "BenchmarkDataset", "BenchmarkEvidenceFixture", "BenchmarkFixtureCatalog",
