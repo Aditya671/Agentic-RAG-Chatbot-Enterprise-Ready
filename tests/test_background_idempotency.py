@@ -43,11 +43,13 @@ def test_filename_normalization_does_not_use_directory_as_identity():
     assert normalize_artifact_filename("uploads\\2026/policy.pdf") == "policy.pdf"
 
 
-def test_idempotency_key_is_operation_scoped():
+def test_idempotency_key_is_operation_and_scope_scoped():
     artifact = build_artifact_identity("policy.pdf", SHA256)
-    index_key = artifact_idempotency_key(artifact)
-    delete_key = artifact_idempotency_key(artifact, operation="delete")
+    index_key = artifact_idempotency_key(artifact, scope="portfolio")
+    delete_key = artifact_idempotency_key(artifact, operation="delete", scope="portfolio")
+    other_index = artifact_idempotency_key(artifact, scope="capitalraising")
     assert index_key != delete_key
+    assert index_key != other_index
     assert index_key.endswith(artifact.artifact_id)
 
 
@@ -83,9 +85,9 @@ async def test_idempotency_store_returns_prior_result():
     store = InMemoryArtifactIdempotencyStore()
     result = {"status": "completed", "indexed": ["policy.pdf"]}
 
-    await store.put("v1:index:artifact-1", result)
-    assert await store.get("v1:index:artifact-1") == result
-    assert await store.get("v1:index:missing") is None
+    await store.put("v1:portfolio:index:artifact-1", result)
+    assert await store.get("v1:portfolio:index:artifact-1") == result
+    assert await store.get("v1:portfolio:index:missing") is None
 
 
 def test_background_task_defaults_are_explicit():
