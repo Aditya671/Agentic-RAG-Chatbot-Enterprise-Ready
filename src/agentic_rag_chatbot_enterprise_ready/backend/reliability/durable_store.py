@@ -87,4 +87,8 @@ class JsonlReliabilityStore:
             evidence=evidence_records,
             outcome=payload.get("outcome", "running"),
             error=payload.get("error"),
+            request_id=payload.get("request_id") or "",
+            session_id=payload.get("session_id"),
+            actor_id=payload.get("actor_id"),
+            conversation_id=payload.get("conversation_id"),
         )

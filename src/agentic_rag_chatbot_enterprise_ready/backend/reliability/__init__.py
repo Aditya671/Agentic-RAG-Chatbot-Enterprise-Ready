@@ -18,6 +18,8 @@ from .benchmark_scenarios import (
     BenchmarkScenarioCatalog,
 )
 from .claims import Claim, ClaimEvidenceLink, ClaimGroundingEvaluator, GroundingResult
+from .conversation import Conversation, ConversationMessage, ConversationService, ConversationStore, InMemoryConversationStore
+from .chainlit_conversation_store import ChainlitConversationStore
 from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
 from .durable_store import JsonlReliabilityStore
 from .evaluation import EvaluationEngine, EvaluationResult
@@ -46,6 +48,7 @@ from .store import InMemoryReliabilityStore
 
 __all__ = [
     "AgentObservability", "Claim", "ClaimEvidenceLink", "ClaimGroundingEvaluator", "GroundingResult",
+    "Conversation", "ConversationMessage", "ConversationService", "ConversationStore", "InMemoryConversationStore", "ChainlitConversationStore",
     "Evidence", "EvidenceRecord", "ExecutionEvent", "ExecutionTrace", "ProvenanceRecord", "JsonlReliabilityStore",
     "EvaluationEngine", "EvaluationResult", "ScenarioEvaluationEngine", "ScenarioEvaluationResult",
     "HarnessCase", "HarnessEngine", "HarnessResult", "ScenarioCatalog", "HealthSnapshot", "MonitoringEngine",

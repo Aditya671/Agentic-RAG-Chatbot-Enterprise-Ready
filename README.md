@@ -1,6 +1,6 @@
 # Agentic-RAG-Chatbot-Enterprise-Ready
 
-An enterprise-oriented Agentic RAG application and agent-engineering workbench focused on **grounded answers, deterministic tool execution, evidence provenance, and measurable reliability**.
+An enterprise-oriented Agentic RAG application and agent-engineering workbench focused on **grounded answers, deterministic tool execution, evidence provenance, measurable reliability, and reproducible evaluation**.
 
 ## What the project contains
 
@@ -9,11 +9,11 @@ An enterprise-oriented Agentic RAG application and agent-engineering workbench f
 - document upload and indexing;
 - Azure AI Search / LlamaIndex retrieval boundaries;
 - structured CSV analysis through bounded deterministic operations;
-- persistent conversation/data-layer integrations where configured;
+- provider-neutral conversation persistence with existing Cosmos DB / MongoDB data-layer boundaries;
 - Azure-aware credential and provider boundaries.
 
 ### Agent engineering layer
-The repository goes beyond a basic chatbot by treating every agent run as an engineering artifact:
+Every meaningful agent run is treated as an engineering artifact:
 
 ```text
 Request
@@ -33,7 +33,7 @@ Reviewed Regression
 Claim → Evidence Grounding
 ```
 
-The current implemented reliability frontier is **Phase 61 — Claim → Evidence Grounding**. The next planned capability is **Phase 62 — Agent Architecture Benchmark**, which will use controlled scenarios to compare agent architectures on answer quality, evidence quality, tool behavior, latency, cost, and failure handling.
+The current implemented frontier is **Phase 72 — Persistence & Conversation State**. The next planned capability is **Phase 73 — Background Processing & Idempotency**.
 
 ## Reliability capabilities
 
@@ -48,7 +48,9 @@ The maintained reliability package includes:
 - scenario-aware evaluation;
 - regression promotion;
 - durable reliability storage;
-- claim/evidence grounding evaluation.
+- claim/evidence grounding evaluation;
+- deterministic end-to-end RAG scenarios;
+- provider-neutral conversation/message persistence.
 
 These components are designed to remain provider-neutral and testable without requiring live cloud services.
 
@@ -66,14 +68,19 @@ These components are designed to remain provider-neutral and testable without re
 
 The authoritative roadmap is [`docs/PLAN.md`](docs/PLAN.md).
 
-The current direction is:
+Current direction:
 
 ```text
-Phase 55–61  Reliability / Evidence Foundation   ✓
-Phase 62     Agent Architecture Benchmark        →
-Phase 63+    Benchmark governance + reporting
-Phase 68+    Complete and harden the application
-Later        Enterprise/provider extensions
+55–67  Reliability / Benchmark Foundation          ✓
+68     Canonical Application Runtime               ✓
+69     Document Ingestion → RAG Journey            ✓
+70     Retrieval → Grounded Answer Boundary        ✓
+71     Deterministic End-to-End RAG Journey        ✓
+72     Persistence & Conversation State            ✓
+73     Background Processing & Idempotency         →
+74     Frontend / API Integration
+75–77  Enterprise / Production Readiness
+Later  Provider Expansion
 ```
 
 ## Validation

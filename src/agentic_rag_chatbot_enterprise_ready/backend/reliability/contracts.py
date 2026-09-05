@@ -64,6 +64,7 @@ class ExecutionTrace:
     request_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     session_id: str | None = None
     actor_id: str | None = None
+    conversation_id: str | None = None
 
     def add_event(self, event: ExecutionEvent) -> None:
         if event.run_id and event.run_id != self.run_id:
