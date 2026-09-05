@@ -1,9 +1,11 @@
 """Controlled, provider-neutral benchmarking of agent architectures."""
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
+from hashlib import sha256
 from statistics import mean
 from typing import Any, Protocol
 
@@ -50,8 +52,12 @@ class BenchmarkMetrics:
     model_calls: int
     tool_calls: int
     retrieval_calls: int
+    input_tokens: int
+    output_tokens: int
+    estimated_model_cost: float
     error: bool
     provenance_completeness: float
+    response_fingerprint: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,8 +84,12 @@ class ArchitectureAggregate:
     average_model_calls: float
     average_tool_calls: float
     average_retrieval_calls: float
+    average_input_tokens: float
+    average_output_tokens: float
+    average_estimated_model_cost: float
     error_rate: float
     average_provenance_completeness: float
+    repeatability_rate: float
 
 
 class ArchitectureBenchmark:
@@ -123,6 +133,13 @@ class ArchitectureBenchmark:
         aggregates: list[ArchitectureAggregate] = []
         for group in grouped.values():
             first = group[0].architecture
+            by_scenario: dict[str, list[str]] = defaultdict(list)
+            for result in group:
+                by_scenario[result.scenario_id].append(result.metrics.response_fingerprint)
+            repeatability = mean(
+                max(Counter(fingerprints).values()) / len(fingerprints)
+                for fingerprints in by_scenario.values()
+            ) if by_scenario else 0.0
             aggregates.append(
                 ArchitectureAggregate(
                     architecture=first,
@@ -134,8 +151,12 @@ class ArchitectureBenchmark:
                     average_model_calls=mean(r.metrics.model_calls for r in group),
                     average_tool_calls=mean(r.metrics.tool_calls for r in group),
                     average_retrieval_calls=mean(r.metrics.retrieval_calls for r in group),
+                    average_input_tokens=mean(r.metrics.input_tokens for r in group),
+                    average_output_tokens=mean(r.metrics.output_tokens for r in group),
+                    average_estimated_model_cost=mean(r.metrics.estimated_model_cost for r in group),
                     error_rate=mean(r.metrics.error for r in group),
                     average_provenance_completeness=mean(r.metrics.provenance_completeness for r in group),
+                    repeatability_rate=repeatability,
                 )
             )
         return tuple(aggregates)
@@ -160,6 +181,9 @@ class ArchitectureBenchmark:
         model_calls = sum(1 for event in events if event.name == "model.call")
         tool_calls = sum(1 for event in events if event.name == "tool.call")
         retrieval_calls = sum(1 for event in events if event.name == "retrieval")
+        input_tokens = sum(BenchmarkMetricsBuilder.numeric_attribute(event, "input_tokens") for event in events)
+        output_tokens = sum(BenchmarkMetricsBuilder.numeric_attribute(event, "output_tokens") for event in events)
+        estimated_cost = sum(BenchmarkMetricsBuilder.numeric_attribute(event, "estimated_cost") for event in events)
         provenance_complete = (
             sum(bool(record.provenance.record_id) for record in trace.evidence) / len(trace.evidence)
             if trace.evidence
@@ -181,8 +205,12 @@ class ArchitectureBenchmark:
             model_calls=model_calls,
             tool_calls=tool_calls,
             retrieval_calls=retrieval_calls,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_model_cost=estimated_cost,
             error=result.outcome == "error",
             provenance_completeness=provenance_complete,
+            response_fingerprint=sha256(result.response_text.encode("utf-8")).hexdigest(),
         )
 
     @staticmethod
@@ -210,3 +238,16 @@ class ArchitectureBenchmark:
                 raise ValueError(f"architecture returned evidence outside benchmark fixture: {source_id!r}")
         if any(not evidence.source_id for evidence in context.available_evidence):
             raise ValueError("available evidence source_id must be non-empty")
+
+
+class BenchmarkMetricsBuilder:
+    """Small parsing boundary for optional numeric model telemetry."""
+
+    @staticmethod
+    def numeric_attribute(event: ExecutionEvent, key: str) -> float:
+        value = event.attributes.get(key)
+        if value is None:
+            return 0.0
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"event attribute {key!r} must be numeric")
+        return float(value)

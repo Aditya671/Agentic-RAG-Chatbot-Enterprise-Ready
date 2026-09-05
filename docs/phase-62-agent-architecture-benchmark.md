@@ -31,8 +31,11 @@ The benchmark records:
 - model-call count;
 - tool-call count;
 - retrieval-call count;
+- input/output token counts when supplied by model telemetry;
+- estimated model cost when supplied by model telemetry;
 - execution error rate;
-- provenance completeness.
+- provenance completeness;
+- response repeatability across repeated runs.
 
 Metrics are derived from execution facts. The benchmark does not ask an agent to grade itself.
 
@@ -45,6 +48,7 @@ Metrics are derived from execution facts. The benchmark does not ask an agent to
 5. Do not rank architectures using a hidden composite score.
 6. Do not treat additional model/tool calls as quality by themselves.
 7. Preserve per-scenario results so aggregate numbers cannot hide regressions.
+8. Treat optional token/cost telemetry as measurements, not inferred values.
 
 ## Example
 
@@ -73,6 +77,8 @@ The benchmark deliberately does **not** declare the tool-aware architecture bett
 - [x] Equivalent scenario/evidence inputs are supported.
 - [x] Per-run comparable metrics are recorded.
 - [x] Architecture-level aggregates are available.
+- [x] Optional model token/cost telemetry is captured when explicitly supplied.
+- [x] Repeatability can be measured across repetitions.
 - [x] No hidden quality score is introduced.
 - [x] The benchmark remains provider-neutral.
 
