@@ -1,10 +1,10 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 71 — Deterministic Upload → Index → Retrieve → Grounded Answer Journey  
+**Current implemented frontier:** Phase 72 — Persistence & Conversation State  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
-> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, and a retrieval-to-grounded-answer boundary. Future work must build on those capabilities rather than restarting the project from application plumbing.
+> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, and provider-neutral conversation persistence. Future work must build on those capabilities rather than restarting the project from application plumbing.
 
 ---
 
@@ -180,13 +180,38 @@ The scenario binds an uploaded fixture to the later question step, requires retu
 
 A named scenario can deterministically exercise upload, indexing, retrieval, grounded answer generation, evidence handoff, and application observability through the existing harness and can be replayed as a future regression or architecture benchmark case.
 
+## Phase 72 — Persistence & Conversation State
+
+Finalized provider-neutral conversation and message contracts and integrated them into the canonical application runtime.
+
+The persistence boundary is:
+
+`request identity → conversation ownership → handler execution → successful turn persistence → history retrieval`
+
+Implemented capabilities include:
+
+- immutable `Conversation` and `ConversationMessage` contracts;
+- `ConversationStore` provider boundary;
+- deterministic `InMemoryConversationStore` for local tests;
+- `ConversationService` application facade;
+- `ChainlitConversationStore` adapter for the existing Chainlit-compatible data layers;
+- canonical runtime persistence for successful question turns;
+- explicit actor/session/conversation identity requirements;
+- conversation identity on execution traces;
+- durable JSONL preservation of conversation/session/actor identity;
+- bounded history retrieval;
+- actor/session isolation and duplicate message protection;
+- explicit persistence failures rather than false-success responses.
+
+The existing Azure Cosmos DB and MongoDB data layers remain the provider implementations. Phase 72 does not duplicate their SDK, indexing, partition, or connection behavior.
+
+### Exit criterion
+
+The canonical runtime can persist and retrieve conversation turns through a provider-neutral contract, existing Cosmos/Mongo data layers can be used through an adapter, actor/session isolation is enforced, execution traces retain conversation identity, and deterministic tests cover the persistence lifecycle.
+
 ---
 
 # 5. Remaining Application Completion Roadmap
-
-## Phase 72 — Persistence & Conversation State
-
-Finalize conversation/message contracts, Cosmos DB and MongoDB boundaries where used, serialization, lifecycle operations, provider failure handling, user/session isolation, and persistence scenarios in the harness.
 
 ## Phase 73 — Background Processing & Idempotency
 
@@ -255,25 +280,25 @@ Technology is not added merely because it is enterprise-branded.
 - [ ] User can upload supported documents.
 - [ ] Documents can be indexed and retrieved.
 - [ ] Structured analysis is bounded and deterministic.
-- [ ] Conversation state works where enabled.
+- [x] Conversation state works through the canonical persistence contract where configured.
 - [ ] Frontend/API supports the complete user journey.
 
 ## Reliability
 
-- [ ] Every meaningful run has a trace.
-- [ ] Evidence and provenance survive the execution path.
-- [ ] Harness scenarios are replayable.
-- [ ] Retrospectives are generated from execution facts.
-- [ ] Reviewed findings can become regression scenarios.
-- [ ] Claim/evidence grounding is measurable.
-- [ ] Architecture variants can be benchmarked under equivalent conditions.
-- [ ] Benchmark results are reproducible and comparable.
+- [x] Every meaningful run has a trace.
+- [x] Evidence and provenance survive the execution path.
+- [x] Harness scenarios are replayable.
+- [x] Retrospectives are generated from execution facts.
+- [x] Reviewed findings can become regression scenarios.
+- [x] Claim/evidence grounding is measurable.
+- [x] Architecture variants can be benchmarked under equivalent conditions.
+- [x] Benchmark results are reproducible and comparable.
 
 ## Safety & operations
 
-- [ ] No arbitrary remote code execution surface is reintroduced.
-- [ ] Security boundaries are tested.
-- [ ] Errors are explicit and diagnosable.
+- [x] No arbitrary remote code execution surface is reintroduced.
+- [ ] Security boundaries are fully tested.
+- [ ] Errors are explicit and diagnosable across all production paths.
 - [ ] Production telemetry is safe and bounded.
 - [ ] Deployment and rollback are documented.
 
@@ -294,9 +319,9 @@ The project continues from the **actual implemented frontier**, not from reposit
         ↓
 71 Deterministic End-to-End RAG Journey          ✓
         ↓
-72 Persistence & Conversation State              ← NEXT
+72 Persistence & Conversation State              ✓
         ↓
-73 Background Processing & Idempotency
+73 Background Processing & Idempotency            ← NEXT
         ↓
 74 Frontend / API Integration
         ↓
@@ -307,6 +332,6 @@ Provider Expansion
 
 ## Immediate next task
 
-**Phase 72 — Persistence & Conversation State.**
+**Phase 73 — Background Processing & Idempotency.**
 
-The next gate should extend the already-proven request and RAG journey with durable conversation/message state while preserving the same provider-boundary, observability, provenance, and deterministic-scenario principles.
+The next gate should extend the proven ingestion path into asynchronous/background execution while preserving stable artifact identity, explicit retry semantics, task observability, and deterministic replay. Celery retries remain disabled until artifact-level idempotency is demonstrated.
