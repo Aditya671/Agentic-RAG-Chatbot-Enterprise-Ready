@@ -118,6 +118,25 @@ class AgentObservability:
         trace.add_evidence(EvidenceRecord(evidence, ProvenanceRecord(provenance_id, parent_ids, operation, provider=provider)))
         return provenance_id
 
+    def record_retrieval(
+        self,
+        trace: ExecutionTrace,
+        evidence: tuple[Evidence, ...],
+        *,
+        provider: str | None = None,
+        duration_ms: float | None = None,
+    ) -> tuple[str, ...]:
+        """Record retrieval metadata and its evidence/provenance without storing a query payload."""
+        provenance_ids = tuple(self.record_evidence(trace, item, provider=provider) for item in evidence)
+        self.record_event(
+            trace,
+            name="retrieval.search",
+            phase="retrieval",
+            attributes={"provider": provider, "result_count": len(evidence)},
+            duration_ms=duration_ms,
+        )
+        return provenance_ids
+
     def record_tool_call(
         self,
         trace: ExecutionTrace,
@@ -153,3 +172,19 @@ class AgentObservability:
         if output_tokens is not None:
             attributes["output_tokens"] = output_tokens
         return self.record_event(trace, name="model.call", phase="model", status=status, attributes=attributes, duration_ms=duration_ms)
+
+    def record_response(
+        self,
+        trace: ExecutionTrace,
+        *,
+        status: str = "success",
+        response_hash: str | None = None,
+        response_length: int | None = None,
+    ) -> str:
+        """Record response metadata without storing the response body."""
+        attributes: dict[str, Any] = {}
+        if response_hash is not None:
+            attributes["response_hash"] = response_hash
+        if response_length is not None:
+            attributes["response_length"] = response_length
+        return self.record_event(trace, name="agent.response", phase="response", status=status, attributes=attributes)
