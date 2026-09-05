@@ -1,7 +1,8 @@
 """Provider-neutral construction of optional agent runtime components."""
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def build_reranker(*, enabled: bool, llm: Any, top_n: int, initialize: Callable[..., Any], logger: Any) -> Any | None:

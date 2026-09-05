@@ -6,8 +6,8 @@ outside the contract itself.
 """
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, Iterable
-from typing import Any, Callable
+from collections.abc import AsyncIterable, Callable, Iterable
+from typing import Any
 
 from backend.orchestration.execution_contract import AgentResponse, build_response, collect_stream
 from backend.orchestration.retrieval_contract import RetrievalConfig

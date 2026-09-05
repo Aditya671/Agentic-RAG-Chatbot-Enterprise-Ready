@@ -1,40 +1,38 @@
 """Maintained provider-neutral base runtime for the enterprise agent."""
 from __future__ import annotations
 
-import asyncio
 import json
-import logging
 import os
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
-from celery.result import AsyncResult
-from dotenv import load_dotenv
-from llama_index.core import Document, Settings
-from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
-from llama_index.core.llms import ChatMessage, MessageRole, TextBlock
-from llama_index.core.memory import Memory
-from llama_index.core.tools import FunctionTool, RetrieverTool, ToolMetadata
-from llama_index.core.vector_stores.types import VectorStoreQueryMode
-
-from app_logger import setup_logger
-from backend.ai_models import AIModelTypes, DEFAULT_REASONING_EFFORT, MODEL_TOKEN_LIMITS
+from backend.ai_models import DEFAULT_REASONING_EFFORT, MODEL_TOKEN_LIMITS, AIModelTypes
 from backend.azure_credential_manager import AzureCredentialManager
 from backend.config import config
 from backend.indexer.azure_search_initializer import initialize_index
 from backend.llm_loader import load_embed, load_llm
 from backend.orchestration.component_runtime import build_graph_rag, build_reranker
 from backend.orchestration.graph_rag import GraphRAGSystem
-from backend.orchestration.structured_csv_runtime import build_csv_runtime
 from backend.orchestration.reranker import initialize_reranker
+from backend.orchestration.structured_csv_runtime import build_csv_runtime
 from backend.tasks import index_files_task
 from backend.user_uploaded_file_indexer import UserUploadedFileIndexer
 from backend.utils import parse_response_sources
+from celery.result import AsyncResult
+from dotenv import load_dotenv
+from llama_index.core import Settings
+from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
+from llama_index.core.llms import ChatMessage, MessageRole, TextBlock
+from llama_index.core.memory import Memory
+from llama_index.core.vector_stores.types import VectorStoreQueryMode
+
+from app_logger import setup_logger
 
 logger, log_filename = setup_logger("agentic_chat_engine")
 
@@ -157,7 +155,7 @@ class AsyncAgenticAiSystem:
                 return None
         else:
             return None
-        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
 
     @classmethod
     def _sort_thread(cls, thread):
@@ -193,7 +191,7 @@ class AsyncAgenticAiSystem:
                 return str(value)
         blocks = getattr(response, "blocks", None)
         if blocks:
-            parts = [str(getattr(block, "text")) for block in blocks if getattr(block, "text", None)]
+            parts = [str(block.text) for block in blocks if getattr(block, "text", None)]
             if parts:
                 return "".join(parts)
         return str(response)
@@ -215,8 +213,8 @@ class AsyncAgenticAiSystem:
 
     def set_conversation_thread(self, thread=None):
         ordered = self._sort_thread(list(thread or []))
-        now = datetime.now(timezone.utc)
-        cutoff_time = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) - timedelta(days=1)
+        now = datetime.now(UTC)
+        cutoff_time = datetime(now.year, now.month, now.day, tzinfo=UTC) - timedelta(days=1)
         dated = [m for m in ordered if self._parse_timestamp(m.get("createdAt"))]
         undated = [m for m in ordered if not self._parse_timestamp(m.get("createdAt"))]
         past = [m for m in dated if self._parse_timestamp(m.get("createdAt")) <= cutoff_time]
@@ -288,6 +286,7 @@ class AsyncAgenticAiSystem:
         for encoding in ("utf-8-sig", "utf-8", "latin1"):
             try:
                 import io
+
                 import pandas as pd
                 df = pd.read_csv(io.BytesIO(csv_file_bytes_content), encoding=encoding, low_memory=False)
                 if df.empty and len(df.columns) == 0:
@@ -389,7 +388,6 @@ class AsyncAgenticAiSystem:
     def build_provider_retriever(self, index=None, **kwargs):
         target = self.index if index is None else index
         from backend.orchestration.provider_boundaries import build_retriever
-        from backend.orchestration.retrieval_contract import RetrievalConfig
         retrieval = getattr(self, "runtime_boundary", None)
         if retrieval is not None:
             return build_retriever(target, retrieval.retrieval, **kwargs)

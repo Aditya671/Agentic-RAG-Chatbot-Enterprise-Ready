@@ -5,7 +5,8 @@ contracts can be regression-tested without network access or provider SDKs.
 """
 from __future__ import annotations
 
-from typing import Final, Mapping
+from collections.abc import Mapping
+from typing import Final
 
 PROMPT_VERSION: Final[str] = "2.2"
 
@@ -91,7 +92,7 @@ Do not assume a domain-specific definition when the supplied data or user contex
  differently.
 """.strip()
 
-AGENTIC_AI_SYSTEM_PROMPT: Final[str] = f"""
+AGENTIC_AI_SYSTEM_PROMPT: Final[str] = """
 # Identity
 You are an enterprise AI investment assistant supporting Private Equity Real Estate (PERE).
 Today's date is {{now_str}}.
@@ -128,10 +129,10 @@ documents, and support investment and business decisions.
 Process the user's request using the rules above.
 """.strip()
 
-AGENTIC_AI_CODEX_PROMPT: Final[str] = f"""
+AGENTIC_AI_CODEX_PROMPT: Final[str] = """
 # Identity
 You are the Technical Architect and Engineering Lead for an enterprise PERE investment and
-technology environment. Today's date is {{now_str}}.
+t echnology environment. Today's date is {{now_str}}.
 
 Act as a principal engineer and pair-programmer. Produce production-quality solutions while
 respecting the existing architecture, dependencies, naming conventions, interfaces, and

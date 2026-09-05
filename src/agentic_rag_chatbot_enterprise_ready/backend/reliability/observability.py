@@ -1,11 +1,12 @@
 """Runtime instrumentation facade with no vendor lock-in."""
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from time import perf_counter
-from typing import Any, Iterator
+from typing import Any
 
-from .contracts import ExecutionEvent, ExecutionTrace, Evidence, EvidenceRecord, ProvenanceRecord
+from .contracts import Evidence, EvidenceRecord, ExecutionEvent, ExecutionTrace, ProvenanceRecord
 from .store import InMemoryReliabilityStore
 
 

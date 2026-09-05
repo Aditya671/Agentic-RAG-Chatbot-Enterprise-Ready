@@ -2,20 +2,19 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Mapping
 from copy import deepcopy
-from typing import Any, Mapping, Optional, Union
+from typing import Any
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from backend.ai_models import AIModelTypes
+from backend.azure_credential_manager import AzureCredentialManager
+from backend.config import IndexConfig, config
 from llama_index.core.llms.llm import LLM
 from llama_index.embeddings.azure_openai import AzureOpenAIEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.azure_openai import AzureOpenAI
 from llama_index.llms.openai import OpenAI
-
-from backend.ai_models import AIModelTypes
-from backend.azure_credential_manager import AzureCredentialManager
-from backend.config import IndexConfig, config
-
 
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_TIMEOUT = 10.0
@@ -40,7 +39,7 @@ def _get_index_config(index_name: str) -> IndexConfig:
     return index_config
 
 
-def _validate_timeout(timeout: Optional[float]) -> Optional[float]:
+def _validate_timeout(timeout: float | None) -> float | None:
     if timeout is None:
         return None
     try:
@@ -53,7 +52,7 @@ def _validate_timeout(timeout: Optional[float]) -> Optional[float]:
     return value
 
 
-def _validate_temperature(temperature: Optional[float]) -> Optional[float]:
+def _validate_temperature(temperature: float | None) -> float | None:
     if temperature is None:
         return None
     try:
@@ -68,7 +67,7 @@ def _validate_temperature(temperature: Optional[float]) -> Optional[float]:
     return value
 
 
-def _copy_kwargs(additional_kwargs: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+def _copy_kwargs(additional_kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
     if additional_kwargs is None:
         return {}
     if not isinstance(additional_kwargs, Mapping):
@@ -103,7 +102,7 @@ def _get_azure_endpoint_and_api_version(
 
 def _get_key_vault_manager(
     index_config: IndexConfig,
-) -> Optional[AzureCredentialManager]:
+) -> AzureCredentialManager | None:
     key_vault = getattr(index_config, "key_vault", None) or {}
     url = key_vault.get("url") if isinstance(key_vault, Mapping) else None
 
@@ -114,9 +113,9 @@ def _get_key_vault_manager(
 
 
 def _get_secret(
-    credential_manager: Optional[AzureCredentialManager],
-    secret_name: Optional[str],
-) -> Optional[str]:
+    credential_manager: AzureCredentialManager | None,
+    secret_name: str | None,
+) -> str | None:
     if not credential_manager or not secret_name:
         return None
     value = credential_manager.get_secret(secret_name)
@@ -125,8 +124,8 @@ def _get_secret(
 
 def _get_openai_api_key(
     index_config: IndexConfig,
-    credential_manager: Optional[AzureCredentialManager],
-) -> Optional[str]:
+    credential_manager: AzureCredentialManager | None,
+) -> str | None:
     key_vault = getattr(index_config, "key_vault", None) or {}
     secret_name = (
         key_vault.get("openai_api_key_name")
@@ -142,8 +141,8 @@ def _get_openai_api_key(
 
 def _get_azure_api_key(
     index_config: IndexConfig,
-    credential_manager: Optional[AzureCredentialManager],
-) -> Optional[str]:
+    credential_manager: AzureCredentialManager | None,
+) -> str | None:
     aoai = _get_aoai_config(index_config)
     key_vault = getattr(index_config, "key_vault", None) or {}
 
@@ -166,7 +165,7 @@ def _get_azure_api_key(
 def _get_azure_auth_kwargs(
     index_config: IndexConfig,
     use_azure_ad: bool,
-    credential_manager: Optional[AzureCredentialManager],
+    credential_manager: AzureCredentialManager | None,
 ) -> dict[str, Any]:
     if not use_azure_ad:
         api_key = _get_azure_api_key(index_config, credential_manager)
@@ -214,11 +213,11 @@ def _resolve_deployment_name(
 def load_llm(
     model: AIModelTypes,
     index_name: str,
-    temperature: Optional[float] = DEFAULT_TEMPERATURE,
-    timeout: Optional[float] = DEFAULT_TIMEOUT,
+    temperature: float | None = DEFAULT_TEMPERATURE,
+    timeout: float | None = DEFAULT_TIMEOUT,
     azure_openai_use_azure_ad: bool = True,
-    additional_kwargs: Optional[Mapping[str, Any]] = None,
-    callback_manager: Optional[Any] = None,
+    additional_kwargs: Mapping[str, Any] | None = None,
+    callback_manager: Any | None = None,
     use_azure: bool = True,
 ) -> LLM:
     """Load an OpenAI-compatible LlamaIndex LLM.
@@ -342,9 +341,9 @@ def load_embed(
     index_name: str,
     azure_openai_use_azure_ad: bool = True,
     use_azure: bool = True,
-    callback_manager: Optional[Any] = None,
-    timeout: Optional[float] = DEFAULT_TIMEOUT,
-) -> Union[AzureOpenAIEmbedding, OpenAIEmbedding]:
+    callback_manager: Any | None = None,
+    timeout: float | None = DEFAULT_TIMEOUT,
+) -> AzureOpenAIEmbedding | OpenAIEmbedding:
     """Load the embedding model configured for an index.
 
     The embedding model name remains controlled by ``index_config.embed.model``.

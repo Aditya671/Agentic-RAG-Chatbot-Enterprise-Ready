@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import Final, FrozenSet, Mapping
+from collections.abc import Mapping
+from enum import StrEnum
+from typing import Final
 
 
-class AIResponseMode(str, Enum):
+class AIResponseMode(StrEnum):
     """Controls response verbosity exposed by the application UI."""
 
     DETAILED = "detailed"
     CONCISE = "concise"
 
 
-class AIModelTypes(str, Enum):
+class AIModelTypes(StrEnum):
     """Supported model identifiers used by the application."""
 
     O4_MINI = "o4-mini"
@@ -50,14 +51,14 @@ DEFAULT_REASONING_EFFORT: Final[Mapping[AIModelTypes, str]] = {
     AIModelTypes.O4_MINI_HIGH: "high",
 }
 
-REASONING_EFFORTS: Final[Mapping[AIModelTypes, FrozenSet[str]]] = {
+REASONING_EFFORTS: Final[Mapping[AIModelTypes, frozenset[str]]] = {
     AIModelTypes.O4_MINI: frozenset({"low", "medium", "high"}),
     AIModelTypes.O4_MINI_HIGH: frozenset({"low", "medium", "high"}),
     AIModelTypes.GPT51: frozenset({"none", "low", "medium", "high"}),
     AIModelTypes.GPT56: frozenset({"none", "low", "medium", "high", "xhigh", "max"}),
 }
 
-NON_REASONING_MODELS: Final[FrozenSet[AIModelTypes]] = frozenset(
+NON_REASONING_MODELS: Final[frozenset[AIModelTypes]] = frozenset(
     {AIModelTypes.GPT4O, AIModelTypes.GPT41, AIModelTypes.GPT41_MINI}
 )
 
@@ -86,7 +87,7 @@ def get_default_reasoning_effort(model: AIModelTypes | str) -> str | None:
     return DEFAULT_REASONING_EFFORT.get(normalize_model(model))
 
 
-def get_supported_reasoning_efforts(model: AIModelTypes | str) -> FrozenSet[str]:
+def get_supported_reasoning_efforts(model: AIModelTypes | str) -> frozenset[str]:
     return REASONING_EFFORTS.get(normalize_model(model), frozenset())
 
 

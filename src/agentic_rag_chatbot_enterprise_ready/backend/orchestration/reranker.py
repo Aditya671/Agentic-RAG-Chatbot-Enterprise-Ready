@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from llama_index.core.llms import LLM
 from llama_index.core.postprocessor import LLMRerank
@@ -26,8 +26,8 @@ def initialize_reranker(
     top_n: int = 5,
     choice_batch_size: int = 5,
     *,
-    callback_manager: Optional[Any] = None,
-    choice_select_prompt: Optional[Any] = None,
+    callback_manager: Any | None = None,
+    choice_select_prompt: Any | None = None,
 ) -> LLMRerank:
     """Create a validated LlamaIndex LLM-based reranker.
 

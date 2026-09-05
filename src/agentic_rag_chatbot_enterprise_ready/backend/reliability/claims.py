@@ -6,7 +6,6 @@ from typing import Any
 
 from .contracts import EvidenceRecord
 
-
 _ALLOWED_RELATIONSHIPS = {"supports", "contradicts", "contextual"}
 
 
@@ -39,9 +38,7 @@ class ClaimEvidenceLink:
         if not self.claim_id.strip() or not self.evidence_source_id.strip():
             raise ValueError("claim_id and evidence_source_id must be non-empty")
         if self.relationship not in _ALLOWED_RELATIONSHIPS:
-            raise ValueError(
-                "relationship must be supports, contradicts, or contextual"
-            )
+            raise ValueError("relationship must be supports, contradicts, or contextual")
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +63,7 @@ class ClaimGroundingEvaluator:
     ) -> GroundingResult:
         if not isinstance(claims, tuple) or not all(isinstance(c, Claim) for c in claims):
             raise TypeError("claims must be a tuple of Claim instances")
-        if not isinstance(links, tuple) or not all(isinstance(l, ClaimEvidenceLink) for l in links):
+        if not isinstance(links, tuple) or not all(isinstance(link, ClaimEvidenceLink) for link in links):
             raise TypeError("links must be a tuple of ClaimEvidenceLink instances")
         if not isinstance(evidence, tuple) or not all(isinstance(e, EvidenceRecord) for e in evidence):
             raise TypeError("evidence must be a tuple of EvidenceRecord instances")
@@ -89,9 +86,7 @@ class ClaimGroundingEvaluator:
             if link.relationship == "supports":
                 links_by_claim.setdefault(link.claim_id, set()).add(link.evidence_source_id)
             elif link.relationship == "contradicts":
-                contradictions_by_claim.setdefault(link.claim_id, set()).add(
-                    link.evidence_source_id
-                )
+                contradictions_by_claim.setdefault(link.claim_id, set()).add(link.evidence_source_id)
 
         supported = 0
         for claim in claims:

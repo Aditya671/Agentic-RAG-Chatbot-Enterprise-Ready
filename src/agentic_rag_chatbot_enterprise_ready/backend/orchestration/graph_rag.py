@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from llama_index.core import Document, PropertyGraphIndex
 from llama_index.core.graph_stores import SimplePropertyGraphStore
@@ -48,14 +49,14 @@ class GraphRAGSystem:
         llm: LLM,
         embed_model: Any,
         *,
-        graph_store: Optional[Any] = None,
-        vector_store: Optional[Any] = None,
-        use_nebula: Optional[bool] = None,
-        nebula_space_name: Optional[str] = None,
-        nebula_url: Optional[str] = None,
-        nebula_port: Optional[int] = None,
-        nebula_username: Optional[str] = None,
-        nebula_password: Optional[str] = None,
+        graph_store: Any | None = None,
+        vector_store: Any | None = None,
+        use_nebula: bool | None = None,
+        nebula_space_name: str | None = None,
+        nebula_url: str | None = None,
+        nebula_port: int | None = None,
+        nebula_username: str | None = None,
+        nebula_password: str | None = None,
         show_progress: bool = False,
         similarity_top_k: int = 5,
         path_depth: int = 1,
@@ -88,7 +89,7 @@ class GraphRAGSystem:
             password=nebula_password,
         )
         self.vector_store = vector_store or SimpleVectorStore()
-        self.index: Optional[PropertyGraphIndex] = None
+        self.index: PropertyGraphIndex | None = None
 
         logger.info(
             "GraphRAGSystem initialized with graph_store=%s, vector_store=%s",
@@ -99,12 +100,12 @@ class GraphRAGSystem:
     @staticmethod
     def _build_graph_store(
         *,
-        use_nebula: Optional[bool],
-        space_name: Optional[str],
-        url: Optional[str],
-        port: Optional[int],
-        username: Optional[str],
-        password: Optional[str],
+        use_nebula: bool | None,
+        space_name: str | None,
+        url: str | None,
+        port: int | None,
+        username: str | None,
+        password: str | None,
     ) -> Any:
         configured_space = space_name or os.getenv("NEBULA_SPACE_NAME") or os.getenv("NEBULA_SPACE")
 
@@ -154,11 +155,11 @@ class GraphRAGSystem:
             ) from exc
 
     @staticmethod
-    def _validate_documents(documents: Sequence[Document]) -> List[Document]:
+    def _validate_documents(documents: Sequence[Document]) -> list[Document]:
         if not isinstance(documents, Sequence) or isinstance(documents, (str, bytes, bytearray)):
             raise TypeError("documents must be a sequence of LlamaIndex Document objects.")
 
-        validated: List[Document] = []
+        validated: list[Document] = []
         for document in documents:
             if not isinstance(document, Document):
                 raise TypeError("All graph documents must be LlamaIndex Document objects.")
@@ -172,9 +173,9 @@ class GraphRAGSystem:
         self,
         documents: Sequence[Document],
         *,
-        kg_extractors: Optional[Sequence[Any]] = None,
-        max_triplets_per_chunk: Optional[int] = None,
-    ) -> Optional[PropertyGraphIndex]:
+        kg_extractors: Sequence[Any] | None = None,
+        max_triplets_per_chunk: int | None = None,
+    ) -> PropertyGraphIndex | None:
         """Build or extend the property graph from documents."""
         validated = self._validate_documents(documents)
         if not validated:
@@ -208,7 +209,7 @@ class GraphRAGSystem:
             logger.exception("Failed to build/update property graph.")
             raise GraphRAGError("Failed to build/update the knowledge graph.") from exc
 
-    def insert_documents(self, documents: Sequence[Document]) -> Optional[PropertyGraphIndex]:
+    def insert_documents(self, documents: Sequence[Document]) -> PropertyGraphIndex | None:
         """Insert additional documents into an existing property graph."""
         validated = self._validate_documents(documents)
         if not validated:
@@ -226,8 +227,8 @@ class GraphRAGSystem:
     def load_existing_graph(
         self,
         *,
-        graph_store: Optional[Any] = None,
-        vector_store: Optional[Any] = None,
+        graph_store: Any | None = None,
+        vector_store: Any | None = None,
     ) -> PropertyGraphIndex:
         """Attach the RAG layer to an already-populated property graph."""
         if graph_store is not None:
@@ -290,7 +291,7 @@ class GraphRAGSystem:
                 except Exception:
                     logger.exception("Failed to close GraphRAG resource %s.", type(resource).__name__)
 
-    def __enter__(self) -> "GraphRAGSystem":
+    def __enter__(self) -> GraphRAGSystem:
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:

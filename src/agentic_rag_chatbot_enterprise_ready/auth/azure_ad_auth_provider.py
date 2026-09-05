@@ -7,10 +7,10 @@ from typing import Any
 
 import httpx
 import jwt
-from fastapi import HTTPException
-from jwt import PyJWKClient
 from chainlit.oauth_providers import OAuthProvider
 from chainlit.user import User
+from fastapi import HTTPException
+from jwt import PyJWKClient
 
 
 class AzureADOAuthProvider(OAuthProvider):
@@ -67,15 +67,9 @@ class AzureADOAuthProvider(OAuthProvider):
                 response = await client.post(self.token_url, data=payload)
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Azure AD token exchange failed.",
-                ) from exc
+                raise HTTPException(status_code=400, detail="Azure AD token exchange failed.") from exc
             except httpx.HTTPError as exc:
-                raise HTTPException(
-                    status_code=502,
-                    detail="Azure AD token service is unavailable.",
-                ) from exc
+                raise HTTPException(status_code=502, detail="Azure AD token service is unavailable.") from exc
 
         try:
             data: Any = response.json()

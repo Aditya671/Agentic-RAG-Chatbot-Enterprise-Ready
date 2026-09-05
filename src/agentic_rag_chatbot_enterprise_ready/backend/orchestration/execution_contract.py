@@ -39,7 +39,7 @@ def extract_text(response: Any) -> str:
 
     blocks = getattr(response, "blocks", None)
     if blocks:
-        parts = [str(getattr(block, "text")) for block in blocks if getattr(block, "text", None)]
+        parts = [str(block.text) for block in blocks if getattr(block, "text", None)]
         if parts:
             return "".join(parts)
 

@@ -5,7 +5,6 @@ import importlib
 import sys
 from pathlib import Path
 
-
 REQUIRED_MODULES = (
     "backend.config",
     "backend.ai_models",

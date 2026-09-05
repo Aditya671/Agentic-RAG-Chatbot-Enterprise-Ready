@@ -1,6 +1,6 @@
 [project]
 name = "agentic-rag-chatbot-azure-native"
-version = "0.2.27"
+version = "0.2.28"
 description = "Enterprise-ready Azure-native Agentic RAG Chatbot"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -8,7 +8,7 @@ license = { text = "MIT" }
 keywords = ["azure", "rag", "agentic", "llamaindex", "chainlit", "pandas"]
 classifiers = ["Development Status :: 4 - Beta", "Intended Audience :: Developers", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3.12"]
 dependencies = [
-  "chainlit==2.12.0", "llama-index==0.14.24", "llama-index-llms-azure-openai==0.5.5", "llama-index-embeddings-azure-openai==0.5.2", "llama-index-vector-stores-azureaisearch==0.5.0", "azure-identity==1.25.3", "azure-keyvault-secrets==4.11.2", "azure-storage-blob==12.30.1", "azure-cosmos==4.16.3", "azure-search-documents==11.6.0", "azure-ai-projects==2.4.0", "openai>=2.8.0,<3", "pandas==3.0.5", "python-dotenv==1.2.3", "httpx==0.28.1", "requests>=2.32.0,<3", "PyJWT>=2.10.0,<3", "PyMuPDF>=1.26.0,<2", "celery>=5.6.0,<6", "boto3>=1.42.0,<2", "botocore>=1.42.0,<2", "pymongo>=4.15.0,<5", "PyYAML>=6.0.2,<7"]
+  "chainlit==2.12.0", "llama-index==0.14.24", "llama-index-llms-azure-openai==0.5.5", "llama-index-embeddings-azure-openai==0.5.2", "llama-index-vector-stores-azureaisearch==0.5.0", "azure-identity==1.25.3", "azure-keyvault-secrets==4.11.2", "azure-storage-blob==12.30.1", "azure-cosmos==4.16.3", "azure-search-documents==11.6.0", "azure-ai-projects==2.4.0", "openai>=2.8.0,<3", "pandas>=2.2.0,<2.3.0", "python-dotenv==1.2.3", "httpx==0.28.1", "requests>=2.32.0,<3", "PyJWT>=2.10.0,<3", "PyMuPDF>=1.26.0,<2", "celery>=5.6.0,<6", "boto3>=1.42.0,<2", "botocore>=1.42.0,<2", "pymongo>=4.15.0,<5", "PyYAML>=6.0.2,<7"]
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "pytest-asyncio>=1.2.0,<2", "ruff>=0.12.0,<1", "mypy>=1.17.0,<2", "pyright>=1.1.400,<2", "build>=1.3.0,<2"]
 [project.scripts]
@@ -29,7 +29,41 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["*_upgraded.py", "old.py"]
+exclude = [
+  "*_upgraded.py",
+  "old.py",
+  "**/test_*.py",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/integrations/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/process_doc/**",
+  "src/agentic_rag_chatbot_enterprise_ready/frontend/**",
+  "src/agentic_rag_chatbot_enterprise_ready/doc_digitization.py",
+]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
+[tool.pyright]
+include = [
+  "app_logger.py",
+  "main.py",
+  "src/agentic_rag_chatbot_enterprise_ready/auth",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/reliability",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/orchestration",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/runtime.py",
+  "src/agentic_rag_chatbot_enterprise_ready/cli.py",
+]
+exclude = [
+  "src/agentic_rag_chatbot_enterprise_ready/backend/integrations/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/process_doc/**",
+  "src/agentic_rag_chatbot_enterprise_ready/frontend/**",
+  "src/agentic_rag_chatbot_enterprise_ready/doc_digitization.py",
+]
+ignore = [
+  "src/agentic_rag_chatbot_enterprise_ready/backend/databases/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/indexer/**",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/tasks.py",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/user_uploaded_file_indexer.py",
+  "src/agentic_rag_chatbot_enterprise_ready/backend/utils/**",
+]
+extraPaths = ["src/agentic_rag_chatbot_enterprise_ready"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"

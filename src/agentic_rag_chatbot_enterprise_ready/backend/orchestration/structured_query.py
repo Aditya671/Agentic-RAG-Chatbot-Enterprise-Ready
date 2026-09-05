@@ -17,11 +17,11 @@ import asyncio
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 import pandas as pd
-
 
 _ALLOWED_OPERATIONS = frozenset(
     {
@@ -78,7 +78,7 @@ class StructuredQueryEngine:
         self._legacy_kwargs = self._kwargs
 
     @property
-    def raw_engine(self) -> "StructuredQueryEngine":
+    def raw_engine(self) -> StructuredQueryEngine:
         """Compatibility alias for callers that previously accessed the raw engine."""
         return self
 

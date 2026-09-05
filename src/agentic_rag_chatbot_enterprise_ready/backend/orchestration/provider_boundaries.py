@@ -6,11 +6,11 @@ translated into LlamaIndex/Azure-facing objects.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from backend.orchestration.retrieval_contract import RetrievalConfig
 from backend.orchestration.structured_query import StructuredQueryEngine
-
 
 _PROTECTED_RETRIEVAL_KWARGS = frozenset(
     {"similarity_top_k", "vector_store_query_mode"}
