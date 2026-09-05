@@ -5,10 +5,10 @@ The existing uploaded-file indexer remains the canonical indexing implementation
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import StrEnum
 import hashlib
 import re
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, Mapping, Protocol, Sequence
 
 
