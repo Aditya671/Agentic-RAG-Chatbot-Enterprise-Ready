@@ -6,33 +6,46 @@ from agentic_rag_chatbot_enterprise_ready.backend.reliability import (
     HarnessCase,
     RegressionPromotionEngine,
     Retrospective,
+    RetrospectiveEngine,
     ScenarioCatalog,
 )
+from agentic_rag_chatbot_enterprise_ready.backend.reliability.observability import AgentObservability
 
 
 def _retrospective() -> Retrospective:
-    return Retrospective(
-        run_id="run-123",
-        outcome="failure",
-        event_count=3,
-        evidence_count=0,
-        errors=("retrieval failed",),
-        observations=("execution contained one or more errors",),
-        recommendations=("inspect the failing execution phase and provider boundary",),
-    )
+    observer = AgentObservability()
+    with observer.run() as trace:
+        observer.record_event(
+            trace,
+            name="retrieval.search",
+            phase="retrieval",
+            attributes={"result_count": 0},
+        )
+    return RetrospectiveEngine().analyze(trace)
 
 
 def test_proposal_carries_retrospective_provenance() -> None:
     case = HarnessCase(case_id="retrieval-failure", question="What is the answer?")
+    retrospective = _retrospective()
 
     proposal = RegressionPromotionEngine.propose(
-        _retrospective(), case, proposal_id="proposal-1"
+        retrospective, case, proposal_id="proposal-1", finding_id="finding-1"
     )
 
-    assert proposal.source_run_id == "run-123"
-    assert proposal.observation == "execution contained one or more errors"
-    assert proposal.recommendation == "inspect the failing execution phase and provider boundary"
+    assert proposal.source_run_id == retrospective.run_id
+    assert proposal.source_finding_id == "finding-1"
+    assert proposal.source_fact_ids == ("retrieval_empty",)
+    assert proposal.observation == retrospective.findings[0].summary
     assert proposal.case == case
+
+
+def test_invalid_finding_cannot_be_promoted_as_if_it_were_current_provenance() -> None:
+    case = HarnessCase(case_id="case-invalid", question="question")
+
+    with pytest.raises(ValueError):
+        RegressionPromotionEngine.propose(
+            _retrospective(), case, proposal_id="proposal-invalid", finding_id="finding-999"
+        )
 
 
 def test_unapproved_proposal_cannot_enter_catalog() -> None:
@@ -60,10 +73,12 @@ def test_approved_review_promotes_exact_case() -> None:
         question="Which source supports the answer?",
         expected_evidence_source_ids=("doc-1",),
     )
+    retrospective = _retrospective()
     proposal = RegressionPromotionEngine.propose(
-        _retrospective(),
+        retrospective,
         case,
         proposal_id="proposal-3",
+        finding_id="finding-1",
         observation="retrieval produced no evidence",
         recommendation="require evidence before accepting the answer",
     )
