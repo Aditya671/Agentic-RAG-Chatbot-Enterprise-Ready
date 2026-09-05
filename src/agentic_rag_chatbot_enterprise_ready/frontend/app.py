@@ -1,8 +1,6 @@
-import ast
 import asyncio
 import contextlib
 import os
-import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +16,6 @@ from chainlit.user import User
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
-from backend.UploadFileWrapper import UploadedFileWrapper
 from backend.utility import generate_blob_sas_url
 from backend.azure_blob_file_retriever import AzureBlobFileRetriever
 from backend.cosmos_db_date_layer import CosmosDBDataLayer
@@ -26,6 +23,12 @@ from backend.ai_models import AIModelTypes
 from backend.config import config, Environment
 from backend.credentials.azure_credential_manager import AzureCredentialManager
 from backend.agentic_ai_system import AsyncAgenticAiSystem
+from backend.application_runtime_adapter import build_application_runtime
+from agentic_rag_chatbot_enterprise_ready.frontend.application_surface import (
+    ApplicationSurface,
+    ApplicationView,
+    EvidenceView,
+)
 from app_logger import setup_logger
 
 
@@ -76,10 +79,7 @@ def _normalize_settings(settings: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         "high" if source["select_response_mode"] == "high" else "low"
     )
 
-    for key in (
-        "enable_reranker",
-        "enable_graph_rag",
-    ):
+    for key in ("enable_reranker", "enable_graph_rag"):
         source[key] = bool(source[key])
 
     return source
@@ -378,6 +378,29 @@ async def _ensure_settings() -> Dict[str, Any]:
     return settings
 
 
+def _actor_id() -> str:
+    user = cl.user_session.get("user")
+    identifier = getattr(user, "identifier", None) if user is not None else None
+    return str(identifier or "local_user")
+
+
+def _conversation_id(explicit: Optional[str] = None) -> str:
+    candidate = explicit or cl.user_session.get("conversation_id")
+    if not candidate:
+        raise ValueError("Chainlit thread identity is required for application execution")
+    return str(candidate)
+
+
+async def _ensure_application_surface(agent) -> ApplicationSurface:
+    surface = cl.user_session.get("application_surface")
+    if surface is None or cl.user_session.get("application_surface_agent") is not agent:
+        runtime = build_application_runtime(agent)
+        surface = ApplicationSurface(runtime)
+        cl.user_session.set("application_surface", surface)
+        cl.user_session.set("application_surface_agent", agent)
+    return surface
+
+
 async def _ensure_agent(settings: Dict[str, Any]):
     agent = cl.user_session.get("agentic_engine")
     if agent is None:
@@ -393,6 +416,8 @@ async def _ensure_agent(settings: Dict[str, Any]):
         agent.set_conversation_thread(
             thread=cl.user_session.get("chat_history") or []
         )
+
+    await _ensure_application_surface(agent)
     return agent
 
 
@@ -433,6 +458,10 @@ async def on_chat_resume(thread):
     settings = await cl.ChatSettings(app_default_setting(**settings)).send()
     settings = _normalize_settings(settings)
     cl.user_session.set("settings", settings)
+
+    thread_id = thread.get("id") or thread.get("threadId")
+    if thread_id:
+        cl.user_session.set("conversation_id", str(thread_id))
 
     if "elements" in thread:
         await _restore_pdf_elements(thread, settings)
@@ -525,6 +554,47 @@ def _append_history(
     )
 
 
+async def _surface_question(
+    surface: ApplicationSurface,
+    user_prompt: str,
+    message: cl.Message,
+) -> ApplicationView:
+    conversation_id = getattr(message, "thread_id", None) or cl.user_session.get(
+        "conversation_id"
+    )
+    if conversation_id:
+        cl.user_session.set("conversation_id", str(conversation_id))
+
+    return await surface.question(
+        user_prompt,
+        session_id=str(cl.user_session.get("id") or "unknown_session"),
+        actor_id=_actor_id(),
+        conversation_id=_conversation_id(conversation_id),
+    )
+
+
+async def _surface_upload(
+    surface: ApplicationSurface,
+    uploaded_files: list[Any],
+) -> ApplicationView:
+    upload_payload = []
+    for file in uploaded_files:
+        path = Path(file.path).resolve()
+        upload_payload.append(
+            {
+                "name": file.name,
+                "content": await asyncio.to_thread(path.read_bytes),
+            }
+        )
+
+    return await surface.upload(
+        upload_payload,
+        session_id=str(cl.user_session.get("id") or "unknown_session"),
+        actor_id=_actor_id(),
+        conversation_id=cl.user_session.get("conversation_id"),
+    )
+
+
 @cl.on_message
 async def on_message(message: cl.Message):
     chat_history = cl.user_session.get("chat_history") or []
@@ -536,6 +606,7 @@ async def on_message(message: cl.Message):
 
         settings = await _ensure_settings()
         agentic_engine = await _ensure_agent(settings)
+        surface = await _ensure_application_surface(agentic_engine)
 
         user_prompt = (message.content or "").strip()
         if not user_prompt:
@@ -543,6 +614,9 @@ async def on_message(message: cl.Message):
                 content="⚠️ Prompt is empty. Please type something."
             ).send()
             return
+
+        if getattr(message, "thread_id", None):
+            cl.user_session.set("conversation_id", str(message.thread_id))
 
         _append_history(
             chat_history,
@@ -568,23 +642,18 @@ async def on_message(message: cl.Message):
         try:
             uploaded_files = message.elements or []
             if uploaded_files:
-                file_wrappers = [
-                    UploadedFileWrapper(file.path, file.name)
-                    for file in uploaded_files
-                ]
-                uploaded_files_summary = await agentic_engine.upload_and_index_files(
-                    file_wrappers
-                )
+                upload_view = await _surface_upload(surface, uploaded_files)
+                summaries = upload_view.metadata.get("summaries", {})
+                if not isinstance(summaries, dict):
+                    summaries = {}
 
                 for user_file in uploaded_files:
                     confirmation = await cl.Message(
-                        content="File uploaded and indexed successfully."
+                        content=upload_view.response_text
                     ).send()
                     await cl.Text(
                         name=user_file.name,
-                        content=uploaded_files_summary.get(
-                            user_file.name, "No summary"
-                        ),
+                        content=str(summaries.get(user_file.name, "No summary")),
                     ).send(for_id=confirmation.id)
 
                 _append_history(
@@ -598,10 +667,10 @@ async def on_message(message: cl.Message):
                     ),
                 )
 
-            result = await agentic_engine.run_agent_async(user_prompt)
-            await stream_answer_and_citations(
+            view = await _surface_question(surface, user_prompt, message)
+            await stream_answer_and_evidence(
                 processing_message,
-                result.response.content,
+                view,
                 settings,
             )
 
@@ -610,7 +679,7 @@ async def on_message(message: cl.Message):
                 step_id=processing_message.id,
                 parent_id=message.id,
                 role="assistant",
-                content=result.response.content,
+                content=view.response_text,
             )
 
             assistant_count = sum(
@@ -653,66 +722,22 @@ async def on_message(message: cl.Message):
         cl.user_session.set("chat_history", chat_history)
 
 
-def _extract_citation_list(response_content: str) -> list[dict[str, Any]]:
-    """Safely extract the Python-list citation payload after 'Citations:'."""
-    marker = "Citations:"
-    index = response_content.find(marker)
-    if index == -1:
-        return []
-
-    remainder = response_content[index + len(marker):].lstrip()
-    start = remainder.find("[")
-    if start == -1:
-        return []
-
-    # Find the matching closing bracket while respecting quoted strings.
-    depth = 0
-    quote = None
-    escaped = False
-
-    for position in range(start, len(remainder)):
-        char = remainder[position]
-
-        if quote:
-            if escaped:
-                escaped = False
-            elif char == "\\":
-                escaped = True
-            elif char == quote:
-                quote = None
-            continue
-
-        if char in ("'", '"'):
-            quote = char
-        elif char == "[":
-            depth += 1
-        elif char == "]":
-            depth -= 1
-            if depth == 0:
-                candidate = remainder[start:position + 1]
-                try:
-                    value = ast.literal_eval(candidate)
-                except (SyntaxError, ValueError):
-                    return []
-                return value if isinstance(value, list) else []
-
-    return []
+def _render_evidence_name(evidence: EvidenceView) -> str:
+    metadata = dict(evidence.metadata)
+    title = metadata.get("title") or metadata.get("source_node") or evidence.source
+    return str(title).rsplit("/", 1)[-1]
 
 
-def _render_source_name(source: dict[str, Any]) -> str:
-    title = str(source.get("title") or source.get("source_node") or "Source")
-    return title.rsplit("/", 1)[-1]
-
-
-async def stream_answer_and_citations(
+async def stream_answer_and_evidence(
     target_msg_element: cl.Message,
-    response_content: str,
+    view: ApplicationView,
     thread_settings: Dict[str, Any],
 ):
-    """Render the answer and validated citation metadata."""
+    """Render answer text and evidence projected by the application boundary."""
     target_msg_element.content = ""
     await target_msg_element.update()
 
+    response_content = view.response_text
     marker = "Citations:"
     citation_index = response_content.find(marker)
     main_content = (
@@ -724,15 +749,14 @@ async def stream_answer_and_citations(
     for token in main_content.split():
         await target_msg_element.stream_token(token + " ")
 
-    source_list = _extract_citation_list(response_content)
+    evidence = view.evidence
     index_config = _get_index_config(thread_settings["select_index"])
     storage = index_config.storage_account
 
     credential_manager = None
     if any(
-        source.get("mimetype") == "pdf"
-        for source in source_list
-        if isinstance(source, dict)
+        str(dict(item.metadata).get("mimetype", "")).lower() == "pdf"
+        for item in evidence
     ):
         credential_manager = _get_blob_storage_client(
             thread_settings["select_index"]
@@ -740,19 +764,16 @@ async def stream_answer_and_citations(
 
     rendered_references = []
 
-    for list_index, source in enumerate(source_list):
-        if not isinstance(source, dict):
-            continue
-
-        mimetype = source.get("mimetype")
-        source_node = source.get("source_node")
-        if not source_node:
-            continue
+    for list_index, item in enumerate(evidence):
+        metadata = dict(item.metadata)
+        mimetype = str(metadata.get("mimetype") or item.source_type).lower()
+        source_node = str(metadata.get("source_node") or item.source)
+        locator = item.locator or metadata.get("page_number") or metadata.get("url")
 
         if mimetype == "pdf":
-            page_number = source.get("page_number")
+            page_number = metadata.get("page_number") or item.locator
             if page_number is None:
-                logger.warning("PDF citation missing page number: %s", source_node)
+                logger.warning("PDF evidence missing page number: %s", source_node)
                 continue
 
             is_user_upload = "user_uploads" in source_node
@@ -778,16 +799,23 @@ async def stream_answer_and_citations(
 
             rendered_references.append(
                 f"&emsp;**Reference [{list_index + 1}]**:&NewLine;"
-                f"&emsp;&emsp;**Source**: {_render_source_name(source)} "
+                f"&emsp;&emsp;**Source**: {_render_evidence_name(item)} "
                 f"(**PageNumber**: {page_number})&NewLine;"
                 f"&emsp;&emsp;**SourcePath**: {source_node}&NewLine;"
             )
 
-        elif mimetype == "url":
-            title = source.get("title") or source_node
+        elif mimetype == "url" or metadata.get("url"):
+            url = str(metadata.get("url") or locator or source_node)
+            title = str(metadata.get("title") or source_node)
             rendered_references.append(
                 f"&emsp;**Reference [{list_index + 1}]**:&NewLine;"
-                f"&emsp;&emsp;**Source**: [{title}]({source_node})&NewLine;"
+                f"&emsp;&emsp;**Source**: [{title}]({url})&NewLine;"
+            )
+        else:
+            rendered_references.append(
+                f"&emsp;**Reference [{list_index + 1}]**:&NewLine;"
+                f"&emsp;&emsp;**Source**: {_render_evidence_name(item)}&NewLine;"
+                f"&emsp;&emsp;**Locator**: {locator or 'n/a'}&NewLine;"
             )
 
     if rendered_references:
@@ -799,3 +827,7 @@ async def stream_answer_and_citations(
             await target_msg_element.stream_token(token + " ")
 
     await target_msg_element.update()
+
+
+# Backward-compatible name for callers/tests that still use the old renderer.
+stream_answer_and_citations = stream_answer_and_evidence
