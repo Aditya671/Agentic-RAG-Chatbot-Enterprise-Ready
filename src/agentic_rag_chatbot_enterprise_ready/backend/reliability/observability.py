@@ -1,6 +1,7 @@
 """Runtime instrumentation facade with no vendor lock-in."""
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from time import perf_counter
@@ -26,11 +27,7 @@ class AgentObservability:
         attributes: dict[str, Any] | None = None,
     ) -> Iterator[ExecutionTrace]:
         """Create a correlated run without recording prompts, content, or raw PII."""
-        trace = ExecutionTrace(
-            request_id=request_id or ExecutionTrace().request_id,
-            session_id=session_id,
-            actor_id=actor_id,
-        )
+        trace = ExecutionTrace(request_id=request_id or str(uuid.uuid4()), session_id=session_id, actor_id=actor_id)
         event_attributes = {
             "request_id": trace.request_id,
             "session_id": trace.session_id,
