@@ -1,7 +1,7 @@
 """Versioned, serializable scenario and fixture definitions for benchmarks."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .claims import Claim, ClaimEvidenceLink
@@ -29,21 +29,7 @@ class BenchmarkEvidenceFixture:
             raise TypeError("evidence must be a tuple of EvidenceRecord instances")
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "fixture_id": self.fixture_id,
-            "version": self.version,
-            "evidence": [record.evidence.__dict__ if hasattr(record.evidence, "__dict__") else {
-                "source_id": record.evidence.source_id,
-                "source_type": record.evidence.source_type,
-                "locator": record.evidence.locator,
-                "content_hash": record.evidence.content_hash,
-                "excerpt": record.evidence.excerpt,
-                "retrieved_at": record.evidence.retrieved_at,
-                "relevance": record.evidence.relevance,
-                "metadata": dict(record.evidence.metadata),
-            } for record in self.evidence],
-            "metadata": dict(self.metadata),
-        }
+        return asdict(self)
 
 
 class BenchmarkFixtureCatalog:
@@ -82,7 +68,7 @@ class BenchmarkScenario:
     difficulty: str = "standard"
     tags: tuple[str, ...] = ()
     expected_capabilities: tuple[str, ...] = ()
-    fixture_ids: tuple[str, ...] = ()
+    fixture_refs: tuple[tuple[str, str], ...] = ()
     expected_claims: tuple[Claim, ...] = ()
     expected_claim_evidence_links: tuple[ClaimEvidenceLink, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -96,6 +82,13 @@ class BenchmarkScenario:
             raise ValueError("case.case_id must match scenario_id")
         if self.difficulty not in {"basic", "standard", "advanced", "failure", "recovery"}:
             raise ValueError("unsupported scenario difficulty")
+        if any(
+            not fixture_id.strip() or not fixture_version.strip()
+            for fixture_id, fixture_version in self.fixture_refs
+        ):
+            raise ValueError("fixture references require non-empty ID and version")
+        if len(self.fixture_refs) != len(set(self.fixture_refs)):
+            raise ValueError("fixture references must be unique")
         if not all(isinstance(claim, Claim) for claim in self.expected_claims):
             raise TypeError("expected_claims must contain Claim instances")
         if not all(isinstance(link, ClaimEvidenceLink) for link in self.expected_claim_evidence_links):
@@ -108,7 +101,7 @@ class BenchmarkScenario:
             "difficulty": self.difficulty,
             "tags": list(self.tags),
             "expected_capabilities": list(self.expected_capabilities),
-            "fixture_ids": list(self.fixture_ids),
+            "fixture_refs": [list(ref) for ref in self.fixture_refs],
             "question": self.case.question,
             "expected_text_contains": list(self.case.expected_text_contains),
             "expected_outcome": self.case.expected_outcome,
@@ -191,19 +184,19 @@ class BenchmarkDataset:
         if len(fixture_keys) != len(set(fixture_keys)):
             raise ValueError("dataset contains duplicate fixture/version identities")
 
-        fixtures_by_id = {fixture.fixture_id: fixture for fixture in self.fixtures}
+        fixture_keys_set = set(fixture_keys)
         for scenario in self.scenarios:
-            missing = set(scenario.fixture_ids) - set(fixtures_by_id)
+            missing = set(scenario.fixture_refs) - fixture_keys_set
             if missing:
                 raise ValueError(
                     f"scenario {scenario.scenario_id} references unknown fixtures: {sorted(missing)}"
                 )
 
-    def fixture(self, fixture_id: str) -> BenchmarkEvidenceFixture:
-        matches = [fixture for fixture in self.fixtures if fixture.fixture_id == fixture_id]
-        if len(matches) != 1:
-            raise KeyError(f"fixture id is not unique in dataset: {fixture_id!r}")
-        return matches[0]
+    def fixture(self, fixture_id: str, version: str) -> BenchmarkEvidenceFixture:
+        for fixture in self.fixtures:
+            if (fixture.fixture_id, fixture.version) == (fixture_id, version):
+                return fixture
+        raise KeyError(f"unknown fixture version: {fixture_id!r}/{version!r}")
 
     def scenario(self, scenario_id: str, version: str) -> BenchmarkScenario:
         for scenario in self.scenarios:
