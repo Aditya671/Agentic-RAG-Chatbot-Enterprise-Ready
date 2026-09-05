@@ -1,14 +1,14 @@
-"""Adapters from the maintained agent implementation into the application boundary."""
+"""Adapters from maintained implementations into the application boundary."""
 from __future__ import annotations
 
 from typing import Any
 
 from .application_runtime import ApplicationRequest, ApplicationRuntime, Capability
-from .reliability import Evidence
+from .reliability import DocumentIngestionService, Evidence
 
 
 def build_application_runtime(system: Any, *, observability=None) -> ApplicationRuntime:
-    """Build the canonical application runtime around a maintained agent system."""
+    """Build the canonical application runtime around maintained services."""
     return ApplicationRuntime(
         {
             Capability.QUESTION: _question_handler(system),
@@ -37,9 +37,16 @@ def _question_handler(system: Any):
 def _upload_handler(system: Any):
     async def handle(request: ApplicationRequest):
         uploaded_files = request.payload.get("uploaded_files")
-        if not isinstance(uploaded_files, list):
-            raise ValueError("payload.uploaded_files must be a list")
-        return await system.upload_and_index_files(uploaded_files)
+        if not isinstance(uploaded_files, list) or not uploaded_files:
+            raise ValueError("payload.uploaded_files must be a non-empty list")
+        indexer = getattr(system, "local_file_indexer", None)
+        if indexer is None:
+            raise TypeError("maintained agent system must expose local_file_indexer")
+        result = await DocumentIngestionService(indexer).ingest(uploaded_files)
+        return {
+            "response_text": _ingestion_message(result),
+            "metadata": result.raw_metadata,
+        }
 
     return handle
 
@@ -50,6 +57,15 @@ def _index_status_handler(system: Any):
         return system.check_indexing_status(task_id)
 
     return handle
+
+
+def _ingestion_message(result) -> str:
+    indexed = sum(item.status == "indexed" for item in result.artifacts)
+    skipped = sum(item.status == "skipped" for item in result.artifacts)
+    failed = sum(item.status == "failed" for item in result.artifacts)
+    if failed:
+        raise RuntimeError(f"Document ingestion failed for {failed} artifact(s).")
+    return f"Document ingestion completed: {indexed} indexed, {skipped} unchanged."
 
 
 def _source_items(metadata: Any) -> list[Any]:
@@ -65,21 +81,11 @@ def _source_items(metadata: Any) -> list[Any]:
 def _evidence_from_source(source: Any) -> Evidence:
     if not isinstance(source, dict):
         raise TypeError("retrieval metadata source must be a mapping")
-    source_id = str(
-        source.get("id")
-        or source.get("source")
-        or source.get("file_name")
-        or source.get("filename")
-        or "unknown"
-    )
+    source_id = str(source.get("id") or source.get("source") or source.get("file_name") or source.get("filename") or "unknown")
     locator = source.get("locator") or source.get("page") or source.get("url")
     score = source.get("score")
     relevance = float(score) if isinstance(score, (int, float)) else None
-    metadata = {
-        key: value
-        for key, value in source.items()
-        if key not in {"content", "excerpt", "text"}
-    }
+    metadata = {key: value for key, value in source.items() if key not in {"content", "excerpt", "text"}}
     return Evidence(
         source_id=source_id,
         source_type=str(source.get("type") or "retrieval"),
