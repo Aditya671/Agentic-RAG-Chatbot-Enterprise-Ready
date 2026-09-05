@@ -1,10 +1,10 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 72 — Persistence & Conversation State  
+**Current implemented frontier:** Phase 73 — Background Processing & Idempotency  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
-> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, and provider-neutral conversation persistence. Future work must build on those capabilities rather than restarting the project from application plumbing.
+> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, and a background processing/idempotency boundary. Future work must build on those capabilities rather than restarting the project from application plumbing.
 
 ---
 
@@ -209,15 +209,33 @@ The existing Azure Cosmos DB and MongoDB data layers remain the provider impleme
 
 The canonical runtime can persist and retrieve conversation turns through a provider-neutral contract, existing Cosmos/Mongo data layers can be used through an adapter, actor/session isolation is enforced, execution traces retain conversation identity, and deterministic tests cover the persistence lifecycle.
 
+## Phase 73 — Background Processing & Idempotency
+
+Finalized the asynchronous ingestion boundary around stable artifact identities, task correlation, deterministic failure classification, compatibility-safe task payload handling, and explicit idempotency contracts.
+
+Implemented capabilities include:
+
+- immutable `ArtifactIdentity` and `BackgroundTask` contracts;
+- deterministic artifact IDs derived from identity version, logical filename, and SHA-256 content checksum;
+- operation-scoped idempotency keys;
+- provider-neutral `BackgroundTaskStore` and `ArtifactIdempotencyStore` boundaries;
+- deterministic in-memory stores for contract/local testing;
+- deterministic retryable vs terminal failure classification;
+- Celery task ID, optional run ID, and artifact ID correlation in worker telemetry;
+- compatibility normalization for legacy `{"path": ...}` task payloads;
+- validation that supplied artifact IDs match current file content;
+- preservation of the maintained `tasks.index_files` task and `UserUploadedFileIndexer` implementation;
+- explicit retention of no automatic Celery retries and no late acknowledgements until durable artifact-level concurrency semantics are demonstrated.
+
+The maintained indexer's existing hash/version-aware unchanged-file behavior remains the canonical sequential idempotency mechanism. Phase 73 does not claim distributed concurrent-worker idempotency without a durable claim/lease implementation.
+
+### Exit criterion
+
+Background indexing has stable artifact identity, task/artifact correlation, deterministic failure classification, compatibility-safe payload handling, and explicit idempotency boundaries. Automatic retries remain gated until durable concurrent idempotency is demonstrated.
+
 ---
 
 # 5. Remaining Application Completion Roadmap
-
-## Phase 73 — Background Processing & Idempotency
-
-Finalize asynchronous ingestion around stable artifact identities, duplicate protection, retryable vs terminal failures, task observability, and upload → task → indexing correlation.
-
-**Celery retries remain disabled until artifact-level idempotency is demonstrated.**
 
 ## Phase 74 — Frontend / API Integration
 
@@ -321,9 +339,9 @@ The project continues from the **actual implemented frontier**, not from reposit
         ↓
 72 Persistence & Conversation State              ✓
         ↓
-73 Background Processing & Idempotency            ← NEXT
+73 Background Processing & Idempotency           ✓
         ↓
-74 Frontend / API Integration
+74 Frontend / API Integration                    ← NEXT
         ↓
 75–77 Enterprise / Production Readiness
         ↓
@@ -332,6 +350,6 @@ Provider Expansion
 
 ## Immediate next task
 
-**Phase 73 — Background Processing & Idempotency.**
+**Phase 74 — Frontend / API Integration.**
 
-The next gate should extend the proven ingestion path into asynchronous/background execution while preserving stable artifact identity, explicit retry semantics, task observability, and deterministic replay. Celery retries remain disabled until artifact-level idempotency is demonstrated.
+The next gate should expose the proven application journey through the real frontend/API: upload, background ingestion status, grounded question answering, evidence inspection, and conversation continuation. It should build on the canonical runtime, conversation persistence, and background task boundaries rather than introducing another application path.

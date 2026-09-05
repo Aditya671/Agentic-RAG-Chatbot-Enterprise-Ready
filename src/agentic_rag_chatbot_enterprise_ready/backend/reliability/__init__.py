@@ -17,6 +17,21 @@ from .benchmark_scenarios import (
     BenchmarkScenario,
     BenchmarkScenarioCatalog,
 )
+from .background import (
+    ArtifactIdempotencyStore,
+    ArtifactIdentity,
+    BackgroundTask,
+    BackgroundTaskStore,
+    FailureClass,
+    InMemoryArtifactIdempotencyStore,
+    InMemoryBackgroundTaskStore,
+    TaskStatus,
+    artifact_identities_from_paths,
+    artifact_idempotency_key,
+    build_artifact_identity,
+    classify_failure,
+    normalize_artifact_filename,
+)
 from .claims import Claim, ClaimEvidenceLink, ClaimGroundingEvaluator, GroundingResult
 from .conversation import Conversation, ConversationMessage, ConversationService, ConversationStore, InMemoryConversationStore
 from .chainlit_conversation_store import ChainlitConversationStore
@@ -47,7 +62,8 @@ from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationRes
 from .store import InMemoryReliabilityStore
 
 __all__ = [
-    "AgentObservability", "Claim", "ClaimEvidenceLink", "ClaimGroundingEvaluator", "GroundingResult",
+    "AgentObservability", "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
+    "Claim", "ClaimEvidenceLink", "ClaimGroundingEvaluator", "GroundingResult",
     "Conversation", "ConversationMessage", "ConversationService", "ConversationStore", "InMemoryConversationStore", "ChainlitConversationStore",
     "Evidence", "EvidenceRecord", "ExecutionEvent", "ExecutionTrace", "ProvenanceRecord", "JsonlReliabilityStore",
     "EvaluationEngine", "EvaluationResult", "ScenarioEvaluationEngine", "ScenarioEvaluationResult",
@@ -56,7 +72,9 @@ __all__ = [
     "RegressionProposal", "RegressionPromotionEngine", "ReviewDecision", "ReviewedRegression",
     "ObservedFact", "Retrospective", "RetrospectiveEngine", "RetrospectiveFinding", "RetrospectiveRecommendation",
     "InMemoryReliabilityStore", "DocumentIngestionService", "IngestionArtifact", "IngestionResult",
-    "RetrievalResult", "RetrievalService",
+    "RetrievalResult", "RetrievalService", "FailureClass", "InMemoryArtifactIdempotencyStore", "InMemoryBackgroundTaskStore",
+    "TaskStatus", "artifact_identities_from_paths", "artifact_idempotency_key", "build_artifact_identity",
+    "classify_failure", "normalize_artifact_filename",
     "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec",
     "BenchmarkContext", "BenchmarkMetrics", "BenchmarkConfig", "BenchmarkReport", "BenchmarkReporter",
     "ArchitectureComparison", "BenchmarkDataset", "BenchmarkEvidenceFixture", "BenchmarkFixtureCatalog",
