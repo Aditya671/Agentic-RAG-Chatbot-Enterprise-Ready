@@ -24,6 +24,7 @@ from .evaluation import EvaluationEngine, EvaluationResult
 from .harness import HarnessCase, HarnessEngine, HarnessResult, ScenarioCatalog
 from .monitoring import HealthSnapshot, MonitoringEngine
 from .observability import AgentObservability
+from .observability_service import ObservabilityService, TraceInspection, TraceQuery
 from .regression_promotion import (
     RegressionPromotionEngine,
     RegressionProposal,
@@ -39,6 +40,7 @@ __all__ = [
     "Evidence", "EvidenceRecord", "ExecutionEvent", "ExecutionTrace", "ProvenanceRecord", "JsonlReliabilityStore",
     "EvaluationEngine", "EvaluationResult", "ScenarioEvaluationEngine", "ScenarioEvaluationResult",
     "HarnessCase", "HarnessEngine", "HarnessResult", "ScenarioCatalog", "HealthSnapshot", "MonitoringEngine",
+    "ObservabilityService", "TraceInspection", "TraceQuery",
     "RegressionProposal", "RegressionPromotionEngine", "ReviewDecision", "ReviewedRegression",
     "Retrospective", "RetrospectiveEngine", "InMemoryReliabilityStore",
     "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec",
