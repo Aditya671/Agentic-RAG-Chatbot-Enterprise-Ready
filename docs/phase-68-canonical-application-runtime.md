@@ -2,142 +2,98 @@
 
 ## Purpose
 
-Phase 68 establishes the application-facing boundary that sits above the maintained provider-aware agent runtime.
-
-The goal is not another agent implementation. The goal is one stable application journey:
+Phase 68 begins the real application journey by establishing one provider-neutral runtime boundary for the user-facing execution path:
 
 ```text
 ApplicationRequest
     ↓
-Normalize
+Normalization
     ↓
 Capability Decision
     ↓
-Capability Handler
+Bounded Capability Handler
     ↓
 Evidence / Provenance
     ↓
-ApplicationResult
+Response Contract
     ↓
 ExecutionTrace
 ```
 
-The existing `IntegratedAsyncAgenticAiSystem` remains responsible for provider-aware agent execution. `ApplicationRuntime` owns application semantics and the stable boundary consumed by an API or frontend.
+The phase deliberately does **not** replace the maintained Azure implementation or introduce another cloud provider. It creates the application-layer seam that the existing provider-aware agent runtime can plug into without becoming the public contract itself.
 
-## Application contract
+## Canonical boundary
 
-`ApplicationRequest` contains:
+`ApplicationRuntime` owns five responsibilities:
 
-- optional natural-language `question`;
-- explicit `capability` when the client already knows the operation;
-- structured `payload` for non-question operations;
-- optional `session_id`;
-- optional `actor_id`.
+1. normalize the incoming request;
+2. select a capability deterministically;
+3. dispatch to an explicitly configured handler;
+4. validate and record returned evidence through `AgentObservability`;
+5. return a stable response together with the execution trace.
 
-Supported capabilities in this phase are:
+Provider-specific services remain behind injected handlers. This keeps Azure, LlamaIndex, search, graph retrieval, and structured-data implementations out of the application contract.
 
-- `question`;
-- `upload`;
-- `index_status`.
+## Capability selection
 
-Capability selection is deterministic. A question defaults to `question`; upload and status operations require explicit capability intent. The runtime does not ask an LLM to decide which application operation should run.
+The initial capability set is intentionally small:
 
-## Canonical response
+- `question` — default for a non-empty question;
+- `upload` — selected only when the API/client explicitly declares upload intent;
+- `index_status` — selected only when explicitly requested.
 
-`ApplicationResult` exposes:
+Natural-language routing is not used to infer upload or status operations. This prevents an LLM from silently deciding which application operation should execute.
 
-- response text;
-- selected capability;
-- application metadata;
-- structured `Evidence` objects;
-- the runtime `run_id`.
+## Request and response contracts
 
-`ApplicationExecution` additionally returns the complete `ExecutionTrace` for callers that need inspection, replay, or downstream evaluation.
+`ApplicationRequest` carries question text, optional explicit capability, opaque operation payload, session correlation, and actor correlation.
 
-## Maintained runtime integration
+`ApplicationResult` carries response text, selected capability, non-sensitive metadata, source-backed `Evidence` records, and the run identifier.
 
-`build_application_runtime()` adapts the maintained `AsyncAgenticAiSystem` without moving provider logic into the application layer:
-
-- question → existing `get_response()` path;
-- upload → existing `upload_and_index_files()` path;
-- index status → existing `check_indexing_status()` path.
-
-Retrieval metadata is translated into the existing evidence contract. Raw retrieved content is deliberately excluded from the application evidence metadata.
-
-This gives the real runtime a stable application seam while preserving the established provider boundaries, retrieval configuration, and reliability instrumentation.
-
-## Observability
-
-Every application execution records:
-
-1. request normalization;
-2. capability selection;
-3. capability execution;
-4. evidence capture when evidence is returned;
-5. response emission;
-6. explicit execution errors.
-
-The application trace retains session and actor correlation identifiers when supplied.
-
-The provider-aware runtime may also emit its own internal trace. These are intentionally separate concerns: the application trace describes the user-facing journey, while the provider runtime trace describes the internal agent execution.
-
-## Error behavior
-
-The application boundary rejects:
-
-- non-`ApplicationRequest` input;
-- empty questions when capability is not explicit;
-- unconfigured capabilities;
-- empty handler responses;
-- malformed handler result types;
-- non-`Evidence` objects in the evidence collection.
-
-Handler exceptions are recorded as an explicit error event and re-raised. The runtime does not convert failures into successful-looking responses.
+The runtime does not persist raw model prompts, tool arguments, tool results, or response bodies in telemetry merely because they pass through the application boundary.
 
 ## Evidence boundary
 
-Evidence is accepted only as structured `Evidence` objects. The adapter strips raw retrieval body fields such as `content`, `excerpt`, and `text` from evidence metadata.
+Handlers may return `Evidence` objects with the response. The runtime records each item through the existing observability layer, which creates the corresponding provenance record.
 
-The runtime therefore preserves the existing distinction between:
+```text
+provider result
+      ↓
+Evidence
+      ↓
+ProvenanceRecord
+      ↓
+ExecutionTrace
+```
 
-- source-backed evidence;
-- execution telemetry;
-- application response data.
+Evidence remains source-backed material. A response, recommendation, retrospective finding, or capability decision does not become evidence merely because it was emitted by the runtime.
 
-No finding, recommendation, or retrospective artifact is treated as evidence.
+## Failure behavior
 
-## Deterministic tests
+A missing capability handler, empty response, malformed handler result, or handler exception is an explicit runtime failure. The runtime records an execution error event and re-raises the original exception to the caller.
 
-Focused tests cover:
+## Relationship to the maintained agent runtime
 
-- whitespace normalization;
-- deterministic default capability selection;
-- explicit upload/status routing;
-- stable application response shaping;
-- trace correlation;
-- evidence recording;
-- maintained-runtime adaptation;
-- raw retrieval-body exclusion;
-- handler failure recording and re-raising.
+The existing `IntegratedAsyncAgenticAiSystem` remains the maintained provider-aware agent implementation. Phase 68 does not duplicate or replace it. The new boundary is deliberately provider-neutral so the maintained implementation can be integrated without changing its existing retrieval, evidence, provenance, or observability semantics.
 
-Tests use fake handlers/runtime systems and do not require Azure, LlamaIndex, a live search index, or a production queue.
+## Deterministic validation
 
-## Intentionally out of scope
+The Phase 68 tests cover normalization, default question routing, explicit upload routing, evidence/provenance handoff, response/run correlation, invalid implicit intent, invalid capability types, and handler failure recording.
 
-Phase 68 does not yet complete the entire user journey. In particular:
+The tests use injected deterministic handlers and do not require Azure credentials, network access, or an LLM.
 
-- document ingestion semantics remain Phase 69;
-- structured CSV/data-analysis completion remains Phase 70;
-- persistence/conversation completion remains Phase 71;
-- background-processing/idempotency completion remains Phase 72;
-- frontend/API integration remains Phase 73.
+## Safety boundaries
 
-The retired arbitrary code-execution surface remains retired.
+Phase 68 does not introduce arbitrary code execution, automatic provider selection, automatic remediation, hidden routing scores, raw telemetry payload capture, or a second competing agent construction path. The retired code-interpreter boundary remains retired.
 
 ## Exit criterion
 
-The maintained agent implementation can be consumed through one explicit application boundary with deterministic capability selection, a stable response contract, structured evidence handoff, and application-level observability.
+The application has a single, testable boundary through which a request is normalized, assigned an explicit capability, executed by a bounded implementation, connected to evidence/provenance, and returned with an inspectable execution trace.
+
+The next integration gate is to wire the maintained question/retrieval implementation through this boundary without bypassing its existing provider and reliability instrumentation.
 
 ## Next phase
 
-Phase 69 completes the document ingestion → indexing → retrieval journey, including artifact identity, duplicate semantics, visible indexing failures, preserved source metadata, deterministic fixtures, and response-linked evidence.
+Phase 69 completes the document-ingestion-to-RAG journey:
+
+`upload → validation → staging → extraction → chunking → metadata → indexing → retrieval → grounded answer`
