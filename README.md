@@ -9,7 +9,6 @@ An enterprise-oriented Agentic RAG application and agent-engineering workbench f
 - document upload and indexing;
 - asynchronous indexing through the maintained Celery task boundary;
 - stable artifact identity and explicit background-task correlation;
-- canonical frontend/API projection over the application runtime;
 - Azure AI Search / LlamaIndex retrieval boundaries;
 - structured CSV analysis through bounded deterministic operations;
 - provider-neutral conversation persistence with existing Cosmos DB / MongoDB data-layer boundaries;
@@ -36,7 +35,7 @@ Reviewed Regression
 Claim → Evidence Grounding
 ```
 
-The current implemented frontier is **Phase 74 — Frontend / API Integration**. The next planned capability is **Phase 75 — Security & Governance**.
+The current implemented frontier is **Phase 73 — Background Processing & Idempotency**. The next planned capability is **Phase 74 — Frontend / API Integration**.
 
 ## Reliability capabilities
 
@@ -55,8 +54,7 @@ The maintained reliability package includes:
 - deterministic end-to-end RAG scenarios;
 - provider-neutral conversation/message persistence;
 - background task and artifact identity contracts;
-- deterministic idempotency keys and failure classification;
-- client/API projections that preserve evidence, run, task, and conversation identity.
+- deterministic idempotency keys and failure classification.
 
 These components are designed to remain provider-neutral and testable without requiring live cloud services.
 
@@ -70,7 +68,6 @@ These components are designed to remain provider-neutral and testable without re
 6. **No arbitrary code execution.** The retired remote sandbox/code-interpreter capability remains out of scope.
 7. **Provider boundaries.** Cloud SDKs and infrastructure integrations stay behind explicit application contracts.
 8. **Idempotency before retries.** Background work must have stable artifact identity and safe duplicate semantics before automatic retries are enabled.
-9. **One application boundary.** Frontends and APIs project the canonical runtime rather than recreating agent behavior.
 
 ## Development roadmap
 
@@ -85,9 +82,9 @@ Current direction:
 70     Retrieval → Grounded Answer Boundary        ✓
 71     Deterministic End-to-End RAG Journey        ✓
 72     Persistence & Conversation State            ✓
-73     Background Processing & Idempotency          ✓
-74     Frontend / API Integration                  ✓
-75–77  Enterprise / Production Readiness            →
+73     Background Processing & Idempotency         ✓
+74     Frontend / API Integration                  →
+75–77  Enterprise / Production Readiness
 Later  Provider Expansion
 ```
 
