@@ -1,453 +1,458 @@
-# End-to-End Application Development Plan
+# Agentic RAG — End-to-End Development Plan
 
-**Status:** Active roadmap  
-**Target:** A runnable, reliable, enterprise-oriented Agentic RAG application  
-**Validation model:** Local deterministic validation first; cloud-backed validation where credentials/services are available.  
+**Status:** Active engineering roadmap  
+**Current implemented frontier:** Phase 61 — Claim → Evidence Grounding  
+**Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
-> This document replaces the earlier platform wishlist. The goal is no longer to enumerate every possible cloud, database, vector store, or SaaS connector. The goal is to finish one coherent application end to end, then extend it through well-defined provider boundaries.
-
----
-
-## 1. Product Goal
-
-Build an enterprise-ready Agentic RAG application that can:
-
-1. accept user questions and uploaded documents;
-2. ingest, normalize, chunk, and index supported content;
-3. retrieve relevant evidence using the configured retrieval backend;
-4. use an agentic runtime to decide which capabilities are required;
-5. execute deterministic tools for structured/data-oriented tasks;
-6. maintain conversation state where configured;
-7. return answers with traceable evidence and useful source metadata;
-8. expose the workflow through the application UI/API boundary;
-9. fail predictably when dependencies, configuration, or evidence are unavailable;
-10. remain extensible without creating parallel implementations.
-
-The system should be judged as an **application**, not as a collection of individual modules.
+> This roadmap supersedes the previous application-only phase sequence. The repository has already progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, and claim/evidence grounding. Future work must build on those capabilities rather than restarting the project from application plumbing.
 
 ---
 
-## 2. Engineering Principles
+## 1. What We Are Building
 
-### 2.1 One canonical implementation
+The project has two tightly connected products:
 
-Historical `*_upgraded.py` implementations have been reconciled into canonical runtime modules. New work must extend the canonical path rather than introducing another suffixed implementation.
+### A. The Agentic RAG Application
 
-### 2.2 Deterministic software before model behavior
+A user-facing system that can:
 
-Use ordinary Python/software logic wherever the requirement is deterministic. LLMs should handle language interpretation and generation, not replace validation, persistence, routing contracts, or security controls.
+`question/upload → understand request → retrieve/use capabilities → execute bounded tools → gather evidence → answer → persist state`
 
-### 2.3 Provider boundaries
+### B. The Agent Engineering System
 
-Azure/OpenAI/Search/Cosmos/MongoDB/Celery and other infrastructure integrations must remain behind explicit boundaries. Core application behavior should be testable without live cloud services.
+A development and evaluation layer that can:
 
-### 2.4 Evidence before confidence
+`observe → trace provenance → replay → retrospect → evaluate → benchmark → promote regressions → improve architecture`
 
-An answer is useful only when its supporting evidence, provenance, and limitations are clear. Retrieval and response contracts should make unsupported claims difficult to produce silently.
-
-### 2.5 No arbitrary remote code execution
-
-The retired E2B/code-interpreter surface must remain retired. Structured analysis should use deterministic, bounded application capabilities.
-
-### 2.6 No speculative platform expansion
-
-Do not add GCP, AWS, Snowflake, Pinecone, SharePoint, Salesforce, SAP, ServiceNow, Kubernetes, or other integrations merely because they are enterprise technologies. Add a provider only when an application requirement and acceptance test exist for it.
-
-### 2.7 No CI dependency
-
-GitHub Actions are not the validation mechanism for this project. Repository validation is performed through local/virtual execution, deterministic test suites, static inspection, and explicit cloud-integration checks.
+The second system is not a side project. It is what allows the first system to become reliable rather than merely functional.
 
 ---
 
-# 3. Development Phases
+# 2. Engineering Model
 
-## Phase 47 — Repository & Runtime Baseline
+```text
+                         Agent Application
+                                │
+                                ▼
+                         Agent Runtime
+                                │
+                  ┌─────────────┼─────────────┐
+                  ▼             ▼             ▼
+            Observability  Provenance     Evidence
+                  └─────────────┼─────────────┘
+                                ▼
+                         Harness + Replay
+                                │
+                                ▼
+                          Retrospective
+                                │
+                                ▼
+                           Evaluation
+                                │
+                                ▼
+                     Architecture Benchmark
+                                │
+                                ▼
+                    Regression / Improvement
+                                │
+                                └──────► Runtime
+```
 
-**Objective:** Establish exactly what exists on `main` and remove remaining migration debris.
+The feedback loop is the core architecture of the project.
 
-### Work
+---
 
-- inventory source, tests, configuration, deployment, and documentation;
-- verify all historical upgraded implementations are absent from the maintained runtime;
-- identify `old.py`, empty files, obsolete upgrade reports, stale compatibility references, and dead imports;
-- verify package entry points and CLI startup path;
-- verify dependency declarations against actual imports;
-- define the supported runtime matrix.
+# 3. Completed Engineering Foundation
+
+The roadmap must preserve the work already implemented.
+
+## Phase 55 — Agent Reliability Foundation
+
+Established common reliability contracts and execution facts:
+
+- execution traces;
+- evidence records;
+- provenance records;
+- structured execution events;
+- reliability-store boundary;
+- observability foundation;
+- harness foundation;
+- retrospective foundation;
+- monitoring foundation.
+
+Reliability facts are structured data, not an agent's self-description.
+
+## Phase 56 — Reliability Replay / Deterministic Harness
+
+Established deterministic scenario execution and replay:
+
+- `HarnessCase`;
+- `ScenarioCatalog`;
+- `HarnessEngine.run_case()`;
+- `HarnessEngine.replay()`;
+- `HarnessEngine.replay_all()`;
+- persisted execution traces;
+- explicit response assertions.
+
+## Phase 57 — Durable Reliability Persistence
+
+Extended the reliability layer with durable storage and clarified the boundary between in-memory testing and persisted execution history.
+
+## Phase 58 — Reliability Evaluation
+
+Established evaluation as a first-class layer over execution facts, including the path toward metrics for retrieval, grounding, tool use, latency, cost, and recovery/failure behavior.
+
+## Phase 59 — Scenario-Aware Evaluation
+
+Extended evaluation so scenarios can assert not only the response but also retrieved evidence and scenario-specific expectations.
+
+## Phase 60 — Reviewed Retrospective → Regression
+
+Established the governance loop in which retrospective findings can become reviewed regression scenarios:
+
+`execution → retrospective finding → review → regression scenario → replay`
+
+## Phase 61 — Claim → Evidence Grounding
+
+Established an explicit claim/evidence relationship layer for grounding evaluation.
+
+`claim_coverage` is a deterministic relationship-coverage metric, not semantic entailment or an LLM judgement of truth.
+
+This is the current implemented frontier.
+
+---
+
+# 4. Next Engineering Roadmap
+
+## Phase 62 — Agent Architecture Benchmark
+
+**Objective:** Turn the existing harness and evaluation system into a controlled framework for comparing agent architectures.
+
+The benchmark must compare architectures under the **same scenario, evidence, tool availability, and evaluation rules**.
+
+### Benchmark dimensions
+
+- task success;
+- response correctness;
+- claim/evidence coverage;
+- retrieval quality;
+- unnecessary retrieval/tool activity;
+- tool selection and execution;
+- failure classification;
+- recovery behavior;
+- latency;
+- token/model cost where measurable;
+- number of model calls;
+- determinism/repeatability;
+- provenance completeness.
+
+### Architecture variants
+
+The benchmark should support pluggable architectures such as:
+
+1. direct RAG;
+2. tool-aware agent;
+3. retrieval-first agent;
+4. planner/executor architecture;
+5. multi-step agentic RAG;
+6. future specialized/multi-agent variants.
+
+Complexity must not be treated as quality.
 
 ### Exit criteria
 
-- one canonical implementation per maintained capability;
-- no accidental migration artifacts in runtime paths;
-- application can reach deterministic startup checks without cloud credentials;
-- documented baseline matches the repository.
+Given the same scenario catalog, multiple architecture implementations can run and produce comparable records containing metrics, evidence, trace/provenance, failures, and configuration identity.
 
 ---
 
-## Phase 48 — Configuration & Environment Contract
+## Phase 63 — Benchmark Dataset & Scenario Governance
 
-**Objective:** Make configuration predictable across development, test, and deployment.
+**Objective:** Make benchmark scenarios a durable engineering asset rather than ad-hoc test code.
 
 ### Work
 
-- establish required vs optional settings;
-- validate environment/config precedence;
-- remove hidden import-time configuration side effects;
-- provide safe example configuration;
-- distinguish configuration errors from provider/runtime errors;
-- ensure secrets never appear in logs, fixtures, or documentation.
+- versioned scenario definitions;
+- scenario metadata and expected capabilities;
+- evidence fixtures;
+- expected claims/evidence relationships;
+- difficulty categories;
+- failure/recovery scenarios;
+- deterministic fixture isolation;
+- scenario/version history;
+- benchmark configuration identity.
 
 ### Exit criteria
 
-- missing configuration produces actionable errors;
-- optional providers can be disabled cleanly;
-- deterministic tests do not require production secrets.
+A benchmark run can be reproduced from a named scenario/version and configuration without undocumented local state.
 
 ---
 
-## Phase 49 — Application Startup & Dependency Wiring
+## Phase 64 — Benchmark Reporting & Comparison
 
-**Objective:** Make the complete application boot path explicit.
+**Objective:** Make architecture comparisons understandable to engineers.
 
-### Flow
+### Outputs
 
-`entry point → configuration → logging → provider boundaries → runtime → frontend/API`
+- per-scenario results;
+- aggregate metrics;
+- pass/fail summaries;
+- evidence/grounding results;
+- latency/cost summaries;
+- failure taxonomy;
+- provenance completeness;
+- architecture-to-architecture comparison;
+- regression deltas against a baseline.
 
-### Work
-
-- finalize application factory/startup lifecycle;
-- verify lazy initialization of cloud providers;
-- validate shutdown/cleanup behavior;
-- prevent network/database initialization merely from importing modules;
-- define health/readiness semantics.
-
-### Exit criteria
-
-- deterministic startup succeeds in an isolated environment;
-- cloud-dependent startup failures identify the exact missing boundary;
-- no hidden side effects during import.
+Reports should explain **why** behavior changed, not merely declare a winner.
 
 ---
 
-## Phase 50 — Canonical Agent Runtime
+## Phase 65 — Agent Observability Productization
 
-**Objective:** Finish the central agent execution path.
-
-### Flow
-
-`user request → normalization → capability/tool decision → retrieval/tool execution → evidence → response`
-
-### Work
-
-- finalize agent construction;
-- define tool contracts and input/output schemas;
-- enforce retrieval configuration and top-k boundaries;
-- separate planning from execution;
-- define model/provider selection;
-- preserve source metadata through the runtime;
-- make failures explicit rather than converting them into plausible answers.
-
-### Exit criteria
-
-- representative requests can execute through the complete runtime with mocked providers;
-- tool calls are bounded and observable;
-- response contracts are deterministic around evidence and errors.
-
----
-
-## Phase 51 — Document Ingestion Pipeline
-
-**Objective:** Make uploaded-document RAG work from file receipt to retrievable evidence.
-
-### Flow
-
-`upload → validation → staging → extraction → chunking → metadata → indexing → retrieval`
-
-### Work
-
-- finalize `UploadFileWrapper` contract;
-- support the currently declared document formats only;
-- validate file size/type/content boundaries;
-- ensure stable document/chunk identifiers;
-- implement deduplication semantics;
-- make indexing failures recoverable and visible;
-- connect the maintained user-upload indexer to the canonical LlamaIndex/Azure Search boundary.
-
-### Exit criteria
-
-- a fixture document can be ingested deterministically;
-- indexed chunks can be retrieved with source metadata;
-- duplicate uploads have defined behavior;
-- failed indexing does not silently report success.
-
----
-
-## Phase 52 — Retrieval & Evidence Layer
-
-**Objective:** Make retrieval reliable enough to support trustworthy answers.
-
-### Work
-
-- define query normalization;
-- implement retrieval configuration;
-- enforce candidate depth and reranking boundaries;
-- preserve document/page/chunk provenance;
-- define empty-result behavior;
-- distinguish retrieval failure from no relevant evidence;
-- add regression fixtures for common retrieval scenarios.
-
-### Exit criteria
-
-- known queries retrieve expected evidence;
-- empty/weak evidence is represented explicitly;
-- provenance survives retrieval → agent → response.
-
----
-
-## Phase 53 — Structured Data & Deterministic Analysis
-
-**Objective:** Support CSV/data-oriented questions without arbitrary code execution.
-
-### Work
-
-- finalize dataframe/CSV ingestion contracts;
-- implement bounded analysis operations;
-- validate columns, filters, aggregations, and numeric operations;
-- define unsupported-operation behavior;
-- prevent analysis tools from becoming arbitrary Python execution surfaces;
-- add representative structured-data fixtures.
-
-### Exit criteria
-
-- supported analytical questions produce reproducible results;
-- unsupported requests fail safely;
-- calculations are performed by deterministic software rather than generated code.
-
----
-
-## Phase 54 — Persistence & Conversation State
-
-**Objective:** Make application state durable without coupling the agent to a specific database implementation.
-
-### Work
-
-- finalize Cosmos DB conversation/data-layer contracts;
-- finalize MongoDB contracts where used;
-- define conversation/message identifiers;
-- implement create/read/update lifecycle behavior;
-- handle serialization and provider failures;
-- test persistence using mocks/fakes before live integration.
-
-### Exit criteria
-
-- conversation state survives a normal request lifecycle;
-- persistence failures are explicit;
-- provider-specific code remains isolated.
-
----
-
-## Phase 55 — Background Processing & Idempotency
-
-**Objective:** Make asynchronous ingestion safe before enabling operational retries.
-
-### Work
-
-- finalize Celery task boundaries;
-- define task payloads using stable artifact identifiers;
-- make upload/index operations idempotent;
-- define retryable vs terminal failures;
-- prevent duplicate indexing from retries;
-- add task lifecycle observability.
-
-### Exit criteria
-
-- the same artifact can be processed repeatedly without corrupting state;
-- retries are safe before being enabled operationally;
-- task status can be correlated to the originating upload.
-
-> Celery retries remain disabled until artifact-level idempotency is demonstrated.
-
----
-
-## Phase 56 — Frontend / API Integration
-
-**Objective:** Connect the real user experience to the maintained backend.
-
-### Work
-
-- finalize Chainlit/application event lifecycle;
-- connect upload events to ingestion;
-- connect user messages to the canonical runtime;
-- stream responses where supported;
-- render sources/evidence clearly;
-- surface validation and dependency failures without leaking internals;
-- eliminate import-time network/storage behavior.
-
-### Exit criteria
-
-A user can:
-
-1. open the application;
-2. upload a supported document;
-3. wait for ingestion status;
-4. ask a question;
-5. receive a grounded response;
-6. inspect its evidence;
-7. continue the conversation.
-
----
-
-## Phase 57 — Security & Enterprise Controls
-
-**Objective:** Establish minimum production safety controls before deployment.
-
-### Work
-
-- authentication boundary;
-- authorization/RBAC model;
-- tenant/user isolation where applicable;
-- secret handling;
-- upload validation;
-- prompt/tool input boundaries;
-- PII-sensitive logging rules;
-- audit events for important actions;
-- dependency and configuration hardening.
-
-### Exit criteria
-
-Security behavior is represented by explicit tests and documented assumptions rather than by configuration folklore.
-
----
-
-## Phase 58 — Observability & Provenance
-
-**Objective:** Make an agent run diagnosable after the fact.
+**Objective:** Move observability from a developer utility into a coherent operational capability.
 
 ### Minimum trace
 
-`request_id → user/session → agent decision → tool call → retrieval → evidence → model call → response`
+`request → session/user → agent decision → tool call → retrieval → evidence → model call → response → outcome`
 
 ### Work
 
-- structured logs;
-- latency/error metrics;
-- tool invocation records;
+- stable request/run identifiers;
+- structured lifecycle events;
+- tool-call records;
 - retrieval diagnostics;
-- provenance identifiers;
-- failure classification;
-- safe operational telemetry.
+- model-call metadata;
+- evidence/provenance linkage;
+- latency/error measurements;
+- safe telemetry boundaries;
+- trace querying/filtering;
+- operational health summaries.
 
 ### Exit criteria
 
-A failed or questionable answer can be traced to the relevant stage without reading raw production logs manually.
+An engineer can inspect a run and identify where behavior diverged from the intended execution path without reconstructing it from raw logs.
 
 ---
 
-## Phase 59 — End-to-End Acceptance Suite
+## Phase 66 — Agent Retrospective Engine
 
-**Objective:** Validate the application as a system.
+**Objective:** Convert observed execution facts into actionable engineering findings.
 
-### Golden scenarios
+The retrospective engine reasons over recorded facts, not an agent's self-grade.
 
-1. simple conversational question;
-2. document-grounded question;
-3. multi-document question;
-4. upload → index → query;
-5. CSV analytical question;
-6. no-evidence question;
-7. malformed upload;
-8. provider timeout/failure;
-9. persistence failure;
-10. repeated/idempotent ingestion;
-11. concurrent user/session isolation;
-12. unsupported capability request.
+### Finding categories
 
-### Validation layers
+- retrieval weakness;
+- missing evidence;
+- unsupported claim;
+- unnecessary tool call;
+- incorrect tool selection;
+- excessive model calls;
+- latency bottleneck;
+- failure/recovery problem;
+- provenance gap;
+- scenario regression;
+- configuration anomaly.
 
-- static/import validation;
-- unit tests;
-- contract tests;
-- mocked integration tests;
-- deterministic local end-to-end tests;
-- optional live Azure integration tests;
-- manual UI acceptance.
+### Output
+
+`execution facts → observations → findings → severity/confidence → recommended action`
 
 ### Exit criteria
 
-The application has a reproducible end-to-end acceptance path independent of GitHub Actions.
+A completed run can produce a structured retrospective whose findings can be reviewed and, when appropriate, promoted into regression scenarios.
 
 ---
 
-## Phase 60 — Deployment & Operational Readiness
+## Phase 67 — Regression Promotion & Reliability Loop
 
-**Objective:** Deploy the validated application rather than deploying unfinished infrastructure.
+**Objective:** Close the engineering feedback loop.
 
-### Work
+### Flow
 
-- finalize Docker/runtime packaging;
-- production configuration;
-- Azure resource dependency map;
-- startup/readiness behavior;
-- scaling assumptions;
-- logging/monitoring configuration;
-- rollback procedure;
-- operational runbook.
+`run → observe → retrospect → review → promote → replay → compare`
 
 ### Exit criteria
 
-A fresh environment can be configured from documented prerequisites and the application can be started, verified, and operated predictably.
+A known failure can become a deterministic regression case and be compared against later implementations through the harness.
 
 ---
 
-# 4. Post-MVP Expansion
+# 5. Application Completion Roadmap
 
-Only after Phase 60 is complete should we consider additional providers/capabilities such as:
+The engineering layer must eventually exercise the real application rather than only synthetic components.
+
+## Phase 68 — Canonical Application Runtime
+
+Finalize:
+
+`user request → normalization → capability decision → retrieval/tool execution → evidence → response`
+
+Requirements:
+
+- one canonical agent construction path;
+- explicit tool contracts;
+- bounded retrieval configuration;
+- provider boundaries;
+- explicit failures;
+- provenance preserved through runtime;
+- observability emitted for meaningful execution stages.
+
+## Phase 69 — Document Ingestion → RAG Journey
+
+Complete:
+
+`upload → validation → staging → extraction → chunking → metadata → indexing → retrieval → grounded answer`
+
+Requirements include supported formats, stable identifiers, duplicate semantics, visible indexing failures, preserved source metadata, deterministic fixtures, and response-linked evidence.
+
+## Phase 70 — Structured Data Analysis
+
+Support bounded CSV/data analysis without arbitrary code execution.
+
+Requirements include deterministic operations, schema validation, filters/aggregations, numeric validation, unsupported-operation behavior, reproducible results, and harness scenarios.
+
+The retired E2B/code-interpreter surface and PandasAI-style arbitrary execution must remain retired.
+
+## Phase 71 — Persistence & Conversation State
+
+Finalize conversation/message contracts, Cosmos DB and MongoDB boundaries where used, serialization, lifecycle operations, provider failure handling, user/session isolation, and persistence scenarios in the harness.
+
+## Phase 72 — Background Processing & Idempotency
+
+Finalize asynchronous ingestion around stable artifact identities, duplicate protection, retryable vs terminal failures, task observability, and upload → task → indexing correlation.
+
+**Celery retries remain disabled until artifact-level idempotency is demonstrated.**
+
+## Phase 73 — Frontend / API Integration
+
+Complete the real journey:
+
+`open application → upload → ingestion status → ask → grounded response → inspect evidence → continue conversation`
+
+The frontend/API must expose useful evidence and bounded errors rather than hiding execution state behind a final answer.
+
+---
+
+# 6. Enterprise & Operational Readiness
+
+## Phase 74 — Security & Governance
+
+Implement and test authentication, authorization/RBAC, tenant/user isolation where applicable, secret handling, upload validation, tool/input boundaries, PII-sensitive logging, audit events, and dependency/configuration hardening.
+
+## Phase 75 — Production Observability & Operations
+
+Extend the reliability model into production operations: health/readiness, metrics, alert adapters, trace retention, operational dashboards, failure triage, runbooks, and safe telemetry/data retention.
+
+## Phase 76 — Deployment & Release Readiness
+
+Validate Docker/runtime packaging, production configuration, Azure dependency mapping, startup/readiness, scaling assumptions, rollback, release validation, and the operational runbook.
+
+GitHub Actions is **not** a required validation mechanism. Local deterministic validation and explicit cloud-integration validation remain authoritative.
+
+---
+
+# 7. Post-MVP Provider Expansion
+
+Only after the core application + engineering feedback loop is reliable should provider expansion begin.
+
+Potential extensions include:
 
 - additional cloud storage providers;
+- GCP/AWS/IBM/Oracle integrations;
 - SharePoint/OneDrive;
 - PostgreSQL/Oracle;
-- additional vector/search providers;
+- additional search/vector providers;
 - Salesforce/SAP/ServiceNow;
-- multi-agent specialization;
-- advanced GraphRAG;
 - enterprise SSO providers;
-- Kubernetes/serverless deployment variants.
+- specialized multi-agent architectures;
+- advanced GraphRAG;
+- Kubernetes/serverless variants.
 
-Each extension must follow the same rule:
+Every provider follows:
 
-**requirement → interface/contract → implementation → deterministic tests → integration test → documentation**.
+**requirement → contract → implementation → deterministic tests → integration validation → benchmark scenario → documentation**.
+
+Technology is not added merely because it is enterprise-branded.
 
 ---
 
-# 5. Definition of Done
+# 8. Definition of Done
 
-The project is considered end-to-end complete when all of the following are true:
+## Application
 
-- [ ] One canonical implementation exists for every maintained capability.
-- [ ] No historical `*_upgraded.py` runtime implementations remain.
-- [ ] Configuration and startup are deterministic.
-- [ ] A user can upload a supported document.
-- [ ] The document can be indexed successfully.
-- [ ] Evidence can be retrieved with provenance.
-- [ ] The agent can use retrieval/tools according to explicit contracts.
-- [ ] Structured analysis works without arbitrary code execution.
+- [ ] User can ask questions through the maintained runtime.
+- [ ] User can upload supported documents.
+- [ ] Documents can be indexed and retrieved.
+- [ ] Structured analysis is bounded and deterministic.
 - [ ] Conversation state works where enabled.
-- [ ] Background ingestion is idempotent before retries are enabled.
-- [ ] The frontend/API can execute the complete workflow.
-- [ ] Errors are explicit, bounded, and diagnosable.
+- [ ] Frontend/API supports the complete user journey.
+
+## Reliability
+
+- [ ] Every meaningful run has a trace.
+- [ ] Evidence and provenance survive the execution path.
+- [ ] Harness scenarios are replayable.
+- [ ] Retrospectives are generated from execution facts.
+- [ ] Reviewed findings can become regression scenarios.
+- [ ] Claim/evidence grounding is measurable.
+- [ ] Architecture variants can be benchmarked under equivalent conditions.
+- [ ] Benchmark results are reproducible and comparable.
+
+## Safety & operations
+
+- [ ] No arbitrary remote code execution surface is reintroduced.
 - [ ] Security boundaries are tested.
-- [ ] Observability connects a request to its execution path.
-- [ ] The golden end-to-end scenarios pass locally/mocked.
-- [ ] Cloud-dependent scenarios are validated separately when services are available.
-- [ ] Deployment and operational procedures are documented.
+- [ ] Errors are explicit and diagnosable.
+- [ ] Production telemetry is safe and bounded.
+- [ ] Deployment and rollback are documented.
 
 ---
 
-# 6. Immediate Execution Order
+# 9. Immediate Execution Order
 
-The next implementation sequence is intentionally narrow:
+The project continues from the **actual implemented frontier**, not from repository cleanup:
 
-**47 → 48 → 49 → 50 → 51 → 52 → 53 → 54 → 55 → 56 → 57 → 58 → 59 → 60**
+```text
+55 Reliability Foundation
+        ↓
+56 Harness + Replay
+        ↓
+57 Durable Reliability
+        ↓
+58 Evaluation
+        ↓
+59 Scenario-aware Evaluation
+        ↓
+60 Reviewed Retrospective → Regression
+        ↓
+61 Claim → Evidence Grounding
+        ↓
+62 Architecture Benchmark        ← NEXT
+        ↓
+63 Scenario / Benchmark Governance
+        ↓
+64 Benchmark Reporting
+        ↓
+65 Observability Productization
+        ↓
+66 Retrospective Engine
+        ↓
+67 Regression / Reliability Loop
+        ↓
+68–73 Complete Real Application Journey
+        ↓
+74–76 Enterprise / Production Readiness
+        ↓
+Provider Expansion
+```
 
-We should not jump ahead to new cloud providers or feature expansion while a core user journey remains incomplete.
+## Immediate next task
 
-The immediate next task is therefore **Phase 47: repository/runtime baseline cleanup**, followed by the first complete mocked user journey before expanding individual capabilities.
+**Phase 62 — Agent Architecture Benchmark.**
+
+Do not begin by adding another cloud provider or rewriting the application. First use the existing harness, observability, provenance, retrospective, evaluation, and claim/evidence contracts to create a controlled architecture-comparison framework.
+
+The benchmark should answer:
+
+> **Given the same problem and the same evidence, which agent architecture performs better, why, and what does it cost in reliability, latency, complexity, and execution?**
