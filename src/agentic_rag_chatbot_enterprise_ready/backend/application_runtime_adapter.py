@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .application_runtime import ApplicationRequest, ApplicationRuntime, Capability
-from .reliability import DocumentIngestionService, Evidence, RetrievalService
+from .reliability import RetrievalService
 
 
 def build_application_runtime(system: Any, *, observability=None) -> ApplicationRuntime:
@@ -36,13 +36,24 @@ def _upload_handler(system: Any):
         uploaded_files = request.payload.get("uploaded_files")
         if not isinstance(uploaded_files, list) or not uploaded_files:
             raise ValueError("payload.uploaded_files must be a non-empty list")
-        indexer = getattr(system, "local_file_indexer", None)
-        if indexer is None:
-            raise TypeError("maintained agent system must expose local_file_indexer")
-        result = await DocumentIngestionService(indexer).ingest(uploaded_files)
+
+        submit = getattr(system, "upload_and_index_files_async", None)
+        if not callable(submit):
+            raise TypeError(
+                "maintained agent system must expose upload_and_index_files_async"
+            )
+
+        task_id = await submit(uploaded_files)
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise TypeError("background indexing submission must return a task ID")
+
         return {
-            "response_text": _ingestion_message(result),
-            "metadata": result.raw_metadata,
+            "response_text": f"Document indexing task submitted: {task_id}",
+            "metadata": {
+                "task_id": task_id,
+                "status": "submitted",
+                "artifact_count": len(uploaded_files),
+            },
         }
 
     return handle
@@ -51,15 +62,11 @@ def _upload_handler(system: Any):
 def _index_status_handler(system: Any):
     async def handle(request: ApplicationRequest):
         task_id = request.payload.get("task_id")
-        return system.check_indexing_status(task_id)
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("payload.task_id must be a non-empty string")
+        return {
+            "response_text": str(system.check_indexing_status(task_id)),
+            "metadata": {"task_id": task_id},
+        }
 
     return handle
-
-
-def _ingestion_message(result) -> str:
-    indexed = sum(item.status == "indexed" for item in result.artifacts)
-    skipped = sum(item.status == "skipped" for item in result.artifacts)
-    failed = sum(item.status == "failed" for item in result.artifacts)
-    if failed:
-        raise RuntimeError(f"Document ingestion failed for {failed} artifact(s).")
-    return f"Document ingestion completed: {indexed} indexed, {skipped} unchanged."
