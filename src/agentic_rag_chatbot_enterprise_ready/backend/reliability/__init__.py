@@ -30,7 +30,15 @@ from .regression_promotion import (
     ReviewDecision,
     ReviewedRegression,
 )
-from .retrospective import HealthSnapshot, MonitoringEngine, Retrospective, RetrospectiveEngine
+from .retrospective import (
+    HealthSnapshot,
+    MonitoringEngine,
+    ObservedFact,
+    Retrospective,
+    RetrospectiveEngine,
+    RetrospectiveFinding,
+    RetrospectiveRecommendation,
+)
 from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationResult
 from .store import InMemoryReliabilityStore
 
@@ -41,7 +49,8 @@ __all__ = [
     "HarnessCase", "HarnessEngine", "HarnessResult", "ScenarioCatalog", "HealthSnapshot", "MonitoringEngine",
     "ObservabilityService", "TraceInspection", "TraceQuery",
     "RegressionProposal", "RegressionPromotionEngine", "ReviewDecision", "ReviewedRegression",
-    "Retrospective", "RetrospectiveEngine", "InMemoryReliabilityStore",
+    "ObservedFact", "Retrospective", "RetrospectiveEngine", "RetrospectiveFinding", "RetrospectiveRecommendation",
+    "InMemoryReliabilityStore",
     "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec",
     "BenchmarkContext", "BenchmarkMetrics", "BenchmarkConfig", "BenchmarkReport", "BenchmarkReporter",
     "ArchitectureComparison", "BenchmarkDataset", "BenchmarkEvidenceFixture", "BenchmarkFixtureCatalog",
