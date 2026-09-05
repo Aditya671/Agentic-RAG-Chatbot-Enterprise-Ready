@@ -5,6 +5,9 @@ import pytest
 from agentic_rag_chatbot_enterprise_ready.backend import tasks as module
 
 
+SHA256 = "a" * 64
+
+
 class FakeIndexer:
     instances = []
 
@@ -18,10 +21,11 @@ class FakeIndexer:
 def reset_state(monkeypatch):
     FakeIndexer.instances.clear()
     monkeypatch.setattr(module, "UserUploadedFileIndexer", FakeIndexer)
+    monkeypatch.setattr(module, "compute_file_hash", lambda path: SHA256)
 
 
-def call_task(*args):
-    return module.index_files_task.run(module.index_files_task, *args)
+def call_task(*args, **kwargs):
+    return module.index_files_task.run(module.index_files_task, *args, **kwargs)
 
 
 def test_task_name_is_preserved():
@@ -78,6 +82,12 @@ def test_file_list_is_copied_before_async_call():
     assert passed is not files
 
 
+def test_legacy_task_mapping_is_normalized_to_path():
+    call_task([{"name": "a.pdf", "path": "/data/a.pdf"}], "root", "index", "gpt-5.1", 10)
+    passed = FakeIndexer.instances[-1].index_uploaded_files.await_args.kwargs["file_list"]
+    assert passed == ["/data/a.pdf"]
+
+
 @pytest.mark.parametrize("value", [[], (), None, "a.pdf", b"a.pdf"])
 def test_invalid_file_list_is_rejected(value):
     with pytest.raises((TypeError, ValueError)):
@@ -99,6 +109,11 @@ def test_similarity_top_k_must_be_positive_integer(value):
 def test_empty_file_path_is_rejected():
     with pytest.raises(ValueError):
         call_task(["a.pdf", " "], "root", "index", "gpt-5.1", 10)
+
+
+def test_mapping_without_path_is_rejected():
+    with pytest.raises(ValueError, match="path"):
+        call_task([{"name": "a.pdf"}], "root", "index", "gpt-5.1", 10)
 
 
 def test_indexer_is_called_once_with_file_list():
@@ -137,6 +152,7 @@ def test_task_is_bound():
 
 def test_automatic_retry_and_late_ack_are_not_enabled():
     assert module.celery_app.conf.task_acks_late is False
+    assert module.index_files_task.autoretry_for == ()
 
 
 def test_async_boundary_is_isolated():
@@ -152,3 +168,11 @@ def test_validation_happens_before_indexer_creation():
     with pytest.raises(ValueError):
         call_task([], "root", "index", "gpt-5.1", 10)
     constructor.assert_not_called()
+
+
+def test_supplied_artifact_ids_must_match_content_identity():
+    artifact = module._artifact_identities(["a.pdf"])[0].artifact_id
+    assert call_task(["a.pdf"], "root", "index", "gpt-5.1", 10, [artifact]) is not None
+
+    with pytest.raises(ValueError, match="do not match"):
+        call_task(["a.pdf"], "root", "index", "gpt-5.1", 10, ["wrong"])
