@@ -134,11 +134,17 @@ def build_artifact_identity(
     )
 
 
-def artifact_idempotency_key(artifact: ArtifactIdentity, *, operation: str = "index") -> str:
-    """Return the stable operation key used to suppress duplicate work."""
-    if not isinstance(operation, str) or not operation.strip():
-        raise ValueError("operation must be a non-empty string")
-    return f"{artifact.identity_version}:{operation}:{artifact.artifact_id}"
+def artifact_idempotency_key(
+    artifact: ArtifactIdentity,
+    *,
+    operation: str = "index",
+    scope: str = "default",
+) -> str:
+    """Return a stable operation key scoped to its destination/context."""
+    for value, name in ((operation, "operation"), (scope, "scope")):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{name} must be a non-empty string")
+    return f"{artifact.identity_version}:{scope}:{operation}:{artifact.artifact_id}"
 
 
 def classify_failure(exc: BaseException) -> FailureClass:
