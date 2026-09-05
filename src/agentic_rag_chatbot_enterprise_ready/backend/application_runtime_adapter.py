@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from .application_runtime import ApplicationRequest, ApplicationRuntime, Capability
-from .reliability import DocumentIngestionService, Evidence
+from .reliability import DocumentIngestionService, Evidence, RetrievalService
 
 
 def build_application_runtime(system: Any, *, observability=None) -> ApplicationRuntime:
@@ -21,14 +21,11 @@ def build_application_runtime(system: Any, *, observability=None) -> Application
 
 def _question_handler(system: Any):
     async def handle(request: ApplicationRequest):
-        response = await system.get_response(request.question)
-        if not isinstance(response, dict):
-            return str(response)
-        metadata = response.get("response_metadata", [])
+        result = await RetrievalService(system).answer(request.question)
         return {
-            "response_text": response.get("response_text", ""),
-            "metadata": metadata if isinstance(metadata, dict) else {"sources": metadata},
-            "evidence": tuple(_evidence_from_source(source) for source in _source_items(metadata)),
+            "response_text": result.response_text,
+            "metadata": result.metadata,
+            "evidence": result.evidence,
         }
 
     return handle
@@ -66,30 +63,3 @@ def _ingestion_message(result) -> str:
     if failed:
         raise RuntimeError(f"Document ingestion failed for {failed} artifact(s).")
     return f"Document ingestion completed: {indexed} indexed, {skipped} unchanged."
-
-
-def _source_items(metadata: Any) -> list[Any]:
-    if isinstance(metadata, dict):
-        sources = metadata.get("sources", metadata.get("source_nodes", metadata))
-    else:
-        sources = metadata
-    if isinstance(sources, (list, tuple)):
-        return list(sources)
-    return []
-
-
-def _evidence_from_source(source: Any) -> Evidence:
-    if not isinstance(source, dict):
-        raise TypeError("retrieval metadata source must be a mapping")
-    source_id = str(source.get("id") or source.get("source") or source.get("file_name") or source.get("filename") or "unknown")
-    locator = source.get("locator") or source.get("page") or source.get("url")
-    score = source.get("score")
-    relevance = float(score) if isinstance(score, (int, float)) else None
-    metadata = {key: value for key, value in source.items() if key not in {"content", "excerpt", "text"}}
-    return Evidence(
-        source_id=source_id,
-        source_type=str(source.get("type") or "retrieval"),
-        locator=str(locator) if locator is not None else None,
-        relevance=relevance,
-        metadata=metadata,
-    )
