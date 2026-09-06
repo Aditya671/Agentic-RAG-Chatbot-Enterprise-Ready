@@ -11,7 +11,9 @@ from .reliability import RetrievalService
 _TASK_ID_PATTERN = re.compile(r"Task ID is:\s*([A-Za-z0-9._:-]+)", re.IGNORECASE)
 
 
-def build_application_runtime(system: Any, *, observability=None) -> ApplicationRuntime:
+def build_application_runtime(
+    system: Any, *, observability=None, conversation_store=None
+) -> ApplicationRuntime:
     """Build the canonical application runtime around maintained services."""
     return ApplicationRuntime(
         {
@@ -20,6 +22,7 @@ def build_application_runtime(system: Any, *, observability=None) -> Application
             Capability.INDEX_STATUS: _index_status_handler(system),
         },
         observability=observability,
+        conversation_store=conversation_store,
     )
 
 
