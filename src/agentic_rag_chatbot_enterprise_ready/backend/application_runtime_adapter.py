@@ -1,13 +1,19 @@
 """Adapters from maintained implementations into the application boundary."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .application_runtime import ApplicationRequest, ApplicationRuntime, Capability
 from .reliability import RetrievalService
 
 
-def build_application_runtime(system: Any, *, observability=None) -> ApplicationRuntime:
+_TASK_ID_PATTERN = re.compile(r"Task ID is:\s*([A-Za-z0-9._:-]+)", re.IGNORECASE)
+
+
+def build_application_runtime(
+    system: Any, *, observability=None, conversation_store=None
+) -> ApplicationRuntime:
     """Build the canonical application runtime around maintained services."""
     return ApplicationRuntime(
         {
@@ -16,6 +22,7 @@ def build_application_runtime(system: Any, *, observability=None) -> Application
             Capability.INDEX_STATUS: _index_status_handler(system),
         },
         observability=observability,
+        conversation_store=conversation_store,
     )
 
 
@@ -31,6 +38,17 @@ def _question_handler(system: Any):
     return handle
 
 
+def _extract_task_id(value: Any) -> str:
+    """Normalize maintained upload submission responses to the task-id contract."""
+    if not isinstance(value, str) or not value.strip():
+        raise TypeError("background indexing submission must return a task ID")
+    value = value.strip()
+    match = _TASK_ID_PATTERN.search(value)
+    if match:
+        return match.group(1)
+    return value
+
+
 def _upload_handler(system: Any):
     async def handle(request: ApplicationRequest):
         uploaded_files = request.payload.get("uploaded_files")
@@ -43,9 +61,8 @@ def _upload_handler(system: Any):
                 "maintained agent system must expose upload_and_index_files_async"
             )
 
-        task_id = await submit(uploaded_files)
-        if not isinstance(task_id, str) or not task_id.strip():
-            raise TypeError("background indexing submission must return a task ID")
+        submission = await submit(uploaded_files)
+        task_id = _extract_task_id(submission)
 
         return {
             "response_text": f"Document indexing task submitted: {task_id}",

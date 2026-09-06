@@ -16,10 +16,12 @@ class FakeAgentSystem:
 
     async def upload_and_index_files_async(self, uploaded_files):
         assert uploaded_files[0]["name"] == "a.txt"
-        return "task-1"
+        return self.upload_result
 
     def check_indexing_status(self, task_id):
         return f"Task {task_id} completed successfully."
+
+    upload_result = "task-1"
 
 
 @pytest.mark.asyncio
@@ -47,6 +49,24 @@ async def test_upload_and_status_are_explicit_capabilities() -> None:
     assert upload.result.metadata["task_id"] == "task-1"
     assert status.result.response_text == "Task task-1 completed successfully."
     assert status.result.metadata["task_id"] == "task-1"
+
+
+@pytest.mark.asyncio
+async def test_legacy_upload_response_is_normalized_to_task_id() -> None:
+    system = FakeAgentSystem()
+    system.upload_result = (
+        "File indexing has been started in the background. Your Task ID is: "
+        "celery-task-123. Use the 'check_indexing_status' tool to check progress."
+    )
+    runtime = build_application_runtime(system)
+    upload = await runtime.execute(
+        ApplicationRequest(
+            capability=Capability.UPLOAD,
+            payload={"uploaded_files": [{"name": "a.txt", "content": b"hello"}]},
+        )
+    )
+    assert upload.result.metadata["task_id"] == "celery-task-123"
+    assert upload.result.response_text == "Document indexing task submitted: celery-task-123"
 
 
 @pytest.mark.asyncio
