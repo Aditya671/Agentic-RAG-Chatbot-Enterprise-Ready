@@ -96,6 +96,8 @@ class ApplicationSurface:
         session_id: str,
         actor_id: str,
         conversation_id: str,
+        tenant_id: str | None = None,
+        roles: frozenset[str] = frozenset(),
         payload: Mapping[str, Any] | None = None,
     ) -> ApplicationView:
         execution = await self._runtime.execute(
@@ -106,6 +108,8 @@ class ApplicationSurface:
                 session_id=session_id,
                 actor_id=actor_id,
                 conversation_id=conversation_id,
+                tenant_id=tenant_id,
+                roles=roles,
             )
         )
         return present_execution(execution)
@@ -117,6 +121,8 @@ class ApplicationSurface:
         session_id: str,
         actor_id: str,
         conversation_id: str | None = None,
+        tenant_id: str | None = None,
+        roles: frozenset[str] = frozenset(),
     ) -> ApplicationView:
         execution = await self._runtime.execute(
             ApplicationRequest(
@@ -125,6 +131,8 @@ class ApplicationSurface:
                 session_id=session_id,
                 actor_id=actor_id,
                 conversation_id=conversation_id,
+                tenant_id=tenant_id,
+                roles=roles,
             )
         )
         return present_execution(execution)
@@ -135,6 +143,8 @@ class ApplicationSurface:
         *,
         session_id: str | None = None,
         actor_id: str | None = None,
+        tenant_id: str | None = None,
+        roles: frozenset[str] = frozenset(),
     ) -> ApplicationView:
         execution = await self._runtime.execute(
             ApplicationRequest(
@@ -142,6 +152,8 @@ class ApplicationSurface:
                 payload={"task_id": task_id},
                 session_id=session_id,
                 actor_id=actor_id,
+                tenant_id=tenant_id,
+                roles=roles,
             )
         )
         return present_execution(execution)
@@ -151,11 +163,13 @@ class ApplicationSurface:
         conversation_id: str,
         *,
         actor_id: str,
+        tenant_id: str | None = None,
         limit: int = 100,
     ) -> HistoryView:
         messages = await self._runtime.history(
             conversation_id,
             actor_id,
+            tenant_id=tenant_id,
             limit=limit,
         )
         return present_history(messages, conversation_id)
