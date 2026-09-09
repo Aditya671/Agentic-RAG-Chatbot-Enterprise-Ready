@@ -17,6 +17,7 @@ class Conversation:
     conversation_id: str
     actor_id: str
     session_id: str
+    tenant_id: str | None = None
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -35,10 +36,34 @@ class ConversationMessage:
 
 
 class ConversationStore(Protocol):
-    async def ensure_conversation(self, conversation_id: str, actor_id: str, session_id: str, *, metadata: dict[str, Any] | None = None) -> Conversation: ...
+    async def ensure_conversation(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        session_id: str,
+        *,
+        tenant_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Conversation: ...
+
     async def append_message(self, message: ConversationMessage) -> ConversationMessage: ...
-    async def list_messages(self, conversation_id: str, actor_id: str, *, limit: int = 100) -> tuple[ConversationMessage, ...]: ...
-    async def delete_conversation(self, conversation_id: str, actor_id: str) -> bool: ...
+
+    async def list_messages(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+        limit: int = 100,
+    ) -> tuple[ConversationMessage, ...]: ...
+
+    async def delete_conversation(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+    ) -> bool: ...
 
 
 class InMemoryConversationStore:
@@ -48,7 +73,20 @@ class InMemoryConversationStore:
         self._conversations: dict[str, Conversation] = {}
         self._messages: dict[str, list[ConversationMessage]] = defaultdict(list)
 
-    async def ensure_conversation(self, conversation_id: str, actor_id: str, session_id: str, *, metadata: dict[str, Any] | None = None) -> Conversation:
+    @staticmethod
+    def _validate_tenant(existing: Conversation, tenant_id: str | None) -> None:
+        if tenant_id is not None and existing.tenant_id != tenant_id:
+            raise PermissionError("conversation belongs to a different tenant")
+
+    async def ensure_conversation(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        session_id: str,
+        *,
+        tenant_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Conversation:
         if not conversation_id or not actor_id or not session_id:
             raise ValueError("conversation_id, actor_id, and session_id are required")
         existing = self._conversations.get(conversation_id)
@@ -57,8 +95,15 @@ class InMemoryConversationStore:
                 raise PermissionError("conversation belongs to a different actor")
             if existing.session_id != session_id:
                 raise PermissionError("conversation belongs to a different session")
+            self._validate_tenant(existing, tenant_id)
             return existing
-        conversation = Conversation(conversation_id, actor_id, session_id, metadata=dict(metadata or {}))
+        conversation = Conversation(
+            conversation_id,
+            actor_id,
+            session_id,
+            tenant_id,
+            metadata=dict(metadata or {}),
+        )
         self._conversations[conversation_id] = conversation
         return conversation
 
@@ -78,12 +123,24 @@ class InMemoryConversationStore:
             raise ValueError("message already exists")
         self._messages[message.conversation_id].append(message)
         self._conversations[message.conversation_id] = Conversation(
-            conversation.conversation_id, conversation.actor_id, conversation.session_id,
-            conversation.created_at, utc_now(), conversation.metadata,
+            conversation.conversation_id,
+            conversation.actor_id,
+            conversation.session_id,
+            conversation.tenant_id,
+            conversation.created_at,
+            utc_now(),
+            conversation.metadata,
         )
         return message
 
-    async def list_messages(self, conversation_id: str, actor_id: str, *, limit: int = 100) -> tuple[ConversationMessage, ...]:
+    async def list_messages(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+        limit: int = 100,
+    ) -> tuple[ConversationMessage, ...]:
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise ValueError("limit must be a positive integer")
         conversation = self._conversations.get(conversation_id)
@@ -91,14 +148,22 @@ class InMemoryConversationStore:
             return ()
         if conversation.actor_id != actor_id:
             raise PermissionError("conversation belongs to a different actor")
+        self._validate_tenant(conversation, tenant_id)
         return tuple(self._messages[conversation_id][-limit:])
 
-    async def delete_conversation(self, conversation_id: str, actor_id: str) -> bool:
+    async def delete_conversation(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+    ) -> bool:
         conversation = self._conversations.get(conversation_id)
         if conversation is None:
             return False
         if conversation.actor_id != actor_id:
             raise PermissionError("conversation belongs to a different actor")
+        self._validate_tenant(conversation, tenant_id)
         del self._conversations[conversation_id]
         self._messages.pop(conversation_id, None)
         return True
@@ -110,17 +175,63 @@ class ConversationService:
     def __init__(self, store: ConversationStore) -> None:
         self.store = store
 
-    async def ensure(self, conversation_id: str, actor_id: str, session_id: str) -> Conversation:
-        return await self.store.ensure_conversation(conversation_id, actor_id, session_id)
+    async def ensure(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        session_id: str,
+        *,
+        tenant_id: str | None = None,
+    ) -> Conversation:
+        return await self.store.ensure_conversation(
+            conversation_id,
+            actor_id,
+            session_id,
+            tenant_id=tenant_id,
+        )
 
-    async def record_turn(self, conversation_id: str, actor_id: str, *, question: str, answer: str, run_id: str | None = None) -> tuple[ConversationMessage, ConversationMessage]:
+    async def record_turn(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        question: str,
+        answer: str,
+        run_id: str | None = None,
+    ) -> tuple[ConversationMessage, ConversationMessage]:
         if not question.strip() or not answer.strip():
             raise ValueError("question and answer must be non-empty")
-        user_message = ConversationMessage(str(uuid.uuid4()), conversation_id, actor_id, "user", question.strip(), run_id=run_id)
-        assistant_message = ConversationMessage(str(uuid.uuid4()), conversation_id, actor_id, "assistant", answer.strip(), run_id=run_id)
+        user_message = ConversationMessage(
+            str(uuid.uuid4()),
+            conversation_id,
+            actor_id,
+            "user",
+            question.strip(),
+            run_id=run_id,
+        )
+        assistant_message = ConversationMessage(
+            str(uuid.uuid4()),
+            conversation_id,
+            actor_id,
+            "assistant",
+            answer.strip(),
+            run_id=run_id,
+        )
         await self.store.append_message(user_message)
         await self.store.append_message(assistant_message)
         return user_message, assistant_message
 
-    async def history(self, conversation_id: str, actor_id: str, *, limit: int = 100) -> tuple[ConversationMessage, ...]:
-        return await self.store.list_messages(conversation_id, actor_id, limit=limit)
+    async def history(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+        limit: int = 100,
+    ) -> tuple[ConversationMessage, ...]:
+        return await self.store.list_messages(
+            conversation_id,
+            actor_id,
+            tenant_id=tenant_id,
+            limit=limit,
+        )
