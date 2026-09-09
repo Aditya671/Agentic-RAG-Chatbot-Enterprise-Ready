@@ -1,5 +1,6 @@
 """Provider-neutral reliability primitives for agent execution."""
 
+from .security import SecurityPolicy, SecurityPrincipal, principal_from_request
 from .benchmark import (
     ArchitectureAggregate,
     ArchitectureBenchmark,
@@ -62,7 +63,8 @@ from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationRes
 from .store import InMemoryReliabilityStore
 
 __all__ = [
-    "AgentObservability", "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
+    "AgentObservability", "SecurityPolicy", "SecurityPrincipal", "principal_from_request",
+    "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
     "Claim", "ClaimEvidenceLink", "ClaimGroundingEvaluator", "GroundingResult",
     "Conversation", "ConversationMessage", "ConversationService", "ConversationStore", "InMemoryConversationStore", "ChainlitConversationStore",
     "Evidence", "EvidenceRecord", "ExecutionEvent", "ExecutionTrace", "ProvenanceRecord", "JsonlReliabilityStore",
