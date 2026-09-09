@@ -1,10 +1,10 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 73 — Background Processing & Idempotency  
+**Current implemented frontier:** Phase 74 — Frontend / API Integration  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
-> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, and a background processing/idempotency boundary. Future work must build on those capabilities rather than restarting the project from application plumbing.
+> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, and the client-facing application surface. Future work must build on those capabilities rather than restarting the project from application plumbing.
 
 ---
 
@@ -233,21 +233,36 @@ The maintained indexer's existing hash/version-aware unchanged-file behavior rem
 
 Background indexing has stable artifact identity, task/artifact correlation, deterministic failure classification, compatibility-safe payload handling, and explicit idempotency boundaries. Automatic retries remain gated until durable concurrent idempotency is demonstrated.
 
----
-
-# 5. Remaining Application Completion Roadmap
-
 ## Phase 74 — Frontend / API Integration
 
-Complete the real journey:
+Completed the real client-facing journey:
 
 `open application → upload → ingestion status → ask → grounded response → inspect evidence → continue conversation`
 
-The frontend/API must expose useful evidence and bounded errors rather than hiding execution state behind a final answer.
+The maintained Chainlit frontend now routes upload, status, question, evidence, and history interactions through the canonical `ApplicationSurface` and `ApplicationRuntime` rather than creating a second execution path.
+
+Implemented capabilities include:
+
+- upload submission through the canonical application surface;
+- stable background task-ID propagation from maintained indexing submission;
+- user-triggered `check_indexing_status` action attached to upload confirmation;
+- session-scoped validation of task IDs before status access;
+- question execution with server-derived actor/session/thread identity;
+- evidence rendering from the application evidence projection;
+- persistence-aware runtime construction through `ChainlitConversationStore`;
+- explicit conversation-history hydration through `ApplicationSurface.history()` on chat resume;
+- restoration state kept separate from LLM prompt construction;
+- deterministic source-level callback wiring coverage.
+
+No client polling loop, automatic retry, duplicate indexing path, or automatic history injection was introduced.
+
+### Exit criterion
+
+The client-facing layer can invoke upload, status, question, evidence, and conversation-history capabilities through one canonical application boundary while preserving task identity, execution identity, evidence, explicit errors, and conversation isolation.
 
 ---
 
-# 6. Enterprise & Operational Readiness
+# 5. Enterprise & Operational Readiness
 
 ## Phase 75 — Security & Governance
 
@@ -265,7 +280,7 @@ GitHub Actions is **not** a required validation mechanism. Local deterministic v
 
 ---
 
-# 7. Post-MVP Provider Expansion
+# 6. Post-MVP Provider Expansion
 
 Only after the core application + engineering feedback loop is reliable should provider expansion begin.
 
@@ -290,16 +305,16 @@ Technology is not added merely because it is enterprise-branded.
 
 ---
 
-# 8. Definition of Done
+# 7. Definition of Done
 
 ## Application
 
-- [ ] User can ask questions through the maintained runtime.
-- [ ] User can upload supported documents.
-- [ ] Documents can be indexed and retrieved.
-- [ ] Structured analysis is bounded and deterministic.
+- [x] User can ask questions through the maintained runtime.
+- [x] User can upload supported documents.
+- [x] Documents can be indexed and retrieved.
+- [x] Structured analysis is bounded and deterministic.
 - [x] Conversation state works through the canonical persistence contract where configured.
-- [ ] Frontend/API supports the complete user journey.
+- [x] Frontend/API supports the complete user journey.
 
 ## Reliability
 
@@ -322,7 +337,7 @@ Technology is not added merely because it is enterprise-branded.
 
 ---
 
-# 9. Immediate Execution Order
+# 8. Immediate Execution Order
 
 The project continues from the **actual implemented frontier**, not from repository cleanup:
 
@@ -341,7 +356,7 @@ The project continues from the **actual implemented frontier**, not from reposit
         ↓
 73 Background Processing & Idempotency           ✓
         ↓
-74 Frontend / API Integration                    ← NEXT
+74 Frontend / API Integration                    ✓
         ↓
 75–77 Enterprise / Production Readiness
         ↓
@@ -350,6 +365,6 @@ Provider Expansion
 
 ## Immediate next task
 
-**Phase 74 — Frontend / API Integration.**
+**Phase 75 — Security & Governance.**
 
-The next gate should expose the proven application journey through the real frontend/API: upload, background ingestion status, grounded question answering, evidence inspection, and conversation continuation. It should build on the canonical runtime, conversation persistence, and background task boundaries rather than introducing another application path.
+The next gate should harden the now-complete application journey with explicit authentication/authorization, tenant and user isolation where applicable, secret handling, upload validation, tool/input boundaries, PII-safe logging, auditability, and dependency/configuration security.
