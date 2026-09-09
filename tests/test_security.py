@@ -35,6 +35,13 @@ def test_upload_policy_rejects_unsafe_extension_and_size() -> None:
         policy.validate_uploads([{"name": "ok.txt", "content": b"12345"}])
 
 
+def test_upload_policy_rejects_path_components() -> None:
+    policy = SecurityPolicy()
+    for name in ("../ok.txt", "..\\ok.txt", "folder/ok.txt", "folder\\ok.txt"):
+        with pytest.raises(ValueError):
+            policy.validate_uploads([{"name": name, "content": b"ok"}])
+
+
 def test_upload_policy_requires_bytes() -> None:
     with pytest.raises(TypeError):
         SecurityPolicy().validate_uploads([{"name": "ok.txt", "content": "text"}])
