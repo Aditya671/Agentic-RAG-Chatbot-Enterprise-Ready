@@ -35,7 +35,7 @@ Reviewed Regression
 Claim → Evidence Grounding
 ```
 
-The current implemented frontier is **Phase 73 — Background Processing & Idempotency**. The next planned capability is **Phase 74 — Frontend / API Integration**.
+The current implemented frontier is **Phase 74 — Frontend / API Integration**. The next planned capability is **Phase 75 — Enterprise / Production Readiness**.
 
 ## Reliability capabilities
 
@@ -83,7 +83,7 @@ Current direction:
 71     Deterministic End-to-End RAG Journey        ✓
 72     Persistence & Conversation State            ✓
 73     Background Processing & Idempotency         ✓
-74     Frontend / API Integration                  →
+74     Frontend / API Integration                  ✓
 75–77  Enterprise / Production Readiness
 Later  Provider Expansion
 ```
