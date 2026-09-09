@@ -6,13 +6,18 @@ from typing import Any
 
 from .application_runtime import ApplicationRequest, ApplicationRuntime, Capability
 from .reliability import RetrievalService
+from .reliability.security import SecurityPolicy
 
 
 _TASK_ID_PATTERN = re.compile(r"Task ID is:\s*([A-Za-z0-9._:-]+)", re.IGNORECASE)
 
 
 def build_application_runtime(
-    system: Any, *, observability=None, conversation_store=None
+    system: Any,
+    *,
+    observability=None,
+    conversation_store=None,
+    security_policy: SecurityPolicy | None = None,
 ) -> ApplicationRuntime:
     """Build the canonical application runtime around maintained services."""
     return ApplicationRuntime(
@@ -23,6 +28,7 @@ def build_application_runtime(
         },
         observability=observability,
         conversation_store=conversation_store,
+        security_policy=security_policy,
     )
 
 
