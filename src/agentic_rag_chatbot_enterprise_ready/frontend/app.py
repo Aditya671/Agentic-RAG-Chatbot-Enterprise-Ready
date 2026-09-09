@@ -24,6 +24,7 @@ from backend.config import config, Environment
 from backend.credentials.azure_credential_manager import AzureCredentialManager
 from backend.agentic_ai_system import AsyncAgenticAiSystem
 from backend.application_runtime_adapter import build_application_runtime
+from backend.reliability.chainlit_conversation_store import ChainlitConversationStore
 from agentic_rag_chatbot_enterprise_ready.frontend.application_surface import (
     ApplicationSurface,
     ApplicationView,
@@ -391,14 +392,49 @@ def _conversation_id(explicit: Optional[str] = None) -> str:
     return str(candidate)
 
 
-async def _ensure_application_surface(agent) -> ApplicationSurface:
+def _remember_indexing_task_id(task_id: str) -> None:
+    tasks = set(cl.user_session.get("indexing_task_ids") or [])
+    tasks.add(task_id)
+    cl.user_session.set("indexing_task_ids", sorted(tasks))
+
+
+def _owns_indexing_task(task_id: str) -> bool:
+    return task_id in set(cl.user_session.get("indexing_task_ids") or [])
+
+
+async def _ensure_application_surface(
+    agent,
+    *,
+    conversation_store=None,
+) -> ApplicationSurface:
     surface = cl.user_session.get("application_surface")
-    if surface is None or cl.user_session.get("application_surface_agent") is not agent:
-        runtime = build_application_runtime(agent)
+    persistent = cl.user_session.get("application_surface_persistent") is True
+    if (
+        surface is None
+        or cl.user_session.get("application_surface_agent") is not agent
+        or (conversation_store is not None and not persistent)
+    ):
+        runtime = build_application_runtime(
+            agent,
+            conversation_store=conversation_store,
+        )
         surface = ApplicationSurface(runtime)
         cl.user_session.set("application_surface", surface)
         cl.user_session.set("application_surface_agent", agent)
+        cl.user_session.set(
+            "application_surface_persistent",
+            conversation_store is not None,
+        )
     return surface
+
+
+async def _ensure_persistent_application_surface(agent) -> ApplicationSurface:
+    data_layer = get_data_layer()
+    conversation_store = ChainlitConversationStore(data_layer)
+    return await _ensure_application_surface(
+        agent,
+        conversation_store=conversation_store,
+    )
 
 
 async def _ensure_agent(settings: Dict[str, Any]):
@@ -425,6 +461,8 @@ async def _ensure_agent(settings: Dict[str, Any]):
 async def start():
     try:
         cl.user_session.set("chat_history", [])
+        cl.user_session.set("indexing_task_ids", [])
+        cl.user_session.set("application_history", None)
         await _ensure_user_groups(cl.user_session.get("user"))
         settings = await _ensure_settings()
         await _ensure_agent(settings)
@@ -467,7 +505,21 @@ async def on_chat_resume(thread):
         await _restore_pdf_elements(thread, settings)
 
     await _ensure_user_groups(cl.user_session.get("user"))
-    await _ensure_agent(settings)
+    agent = await _ensure_agent(settings)
+
+    if thread_id:
+        try:
+            surface = await _ensure_persistent_application_surface(agent)
+            history = await surface.history(
+                str(thread_id),
+                actor_id=_actor_id(),
+            )
+            cl.user_session.set("application_history", history.to_dict())
+        except Exception:
+            logger.exception(
+                "Application conversation history hydration failed thread=%s",
+                thread_id,
+            )
 
 
 async def _restore_pdf_elements(thread: Dict[str, Any], settings: Dict[str, Any]):
@@ -606,7 +658,11 @@ async def on_message(message: cl.Message):
 
         settings = await _ensure_settings()
         agentic_engine = await _ensure_agent(settings)
-        surface = await _ensure_application_surface(agentic_engine)
+
+        if getattr(message, "thread_id", None):
+            cl.user_session.set("conversation_id", str(message.thread_id))
+
+        surface = await _ensure_persistent_application_surface(agentic_engine)
 
         user_prompt = (message.content or "").strip()
         if not user_prompt:
@@ -614,9 +670,6 @@ async def on_message(message: cl.Message):
                 content="⚠️ Prompt is empty. Please type something."
             ).send()
             return
-
-        if getattr(message, "thread_id", None):
-            cl.user_session.set("conversation_id", str(message.thread_id))
 
         _append_history(
             chat_history,
@@ -643,13 +696,27 @@ async def on_message(message: cl.Message):
             uploaded_files = message.elements or []
             if uploaded_files:
                 upload_view = await _surface_upload(surface, uploaded_files)
+                task_id = upload_view.metadata.get("task_id")
+                if isinstance(task_id, str) and task_id.strip():
+                    _remember_indexing_task_id(task_id.strip())
+                    upload_actions = [
+                        cl.Action(
+                            name="check_indexing_status",
+                            payload={"task_id": task_id.strip()},
+                            label="Check indexing status",
+                        )
+                    ]
+                else:
+                    upload_actions = []
+
                 summaries = upload_view.metadata.get("summaries", {})
                 if not isinstance(summaries, dict):
                     summaries = {}
 
                 for user_file in uploaded_files:
                     confirmation = await cl.Message(
-                        content=upload_view.response_text
+                        content=upload_view.response_text,
+                        actions=upload_actions,
                     ).send()
                     await cl.Text(
                         name=user_file.name,
@@ -720,6 +787,39 @@ async def on_message(message: cl.Message):
             content="InternalServerError: the request could not be processed."
         ).send()
         cl.user_session.set("chat_history", chat_history)
+
+
+@cl.action_callback("check_indexing_status")
+async def check_indexing_status(action: cl.Action):
+    task_id = action.payload.get("task_id") if isinstance(action.payload, dict) else None
+    if not isinstance(task_id, str) or not task_id.strip():
+        await cl.ErrorMessage(
+            content="That indexing task is not available."
+        ).send()
+        return
+
+    task_id = task_id.strip()
+    if not _owns_indexing_task(task_id):
+        await cl.ErrorMessage(
+            content="That indexing task is not available in this session."
+        ).send()
+        return
+
+    try:
+        settings = await _ensure_settings()
+        agent = await _ensure_agent(settings)
+        surface = await _ensure_persistent_application_surface(agent)
+        view = await surface.index_status(
+            task_id,
+            session_id=str(cl.user_session.get("id") or "unknown_session"),
+            actor_id=_actor_id(),
+        )
+        await cl.Message(content=view.response_text).send()
+    except Exception:
+        logger.exception("Indexing status action failed task_id=%s", task_id)
+        await cl.ErrorMessage(
+            content="Unable to retrieve indexing status. Please try again."
+        ).send()
 
 
 def _render_evidence_name(evidence: EvidenceView) -> str:
