@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping
+from typing import TYPE_CHECKING, Iterable, Mapping
+
+if TYPE_CHECKING:
+    from .security_audit import SecurityAuditEvent, InMemorySecurityAuditSink
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +38,7 @@ class SecurityPolicy:
     required_roles: Mapping[str, frozenset[str]] = field(default_factory=dict)
     allowed_upload_extensions: frozenset[str] = frozenset({".pdf", ".txt", ".csv"})
     max_upload_size_bytes: int = 10 * 1024 * 1024
+    audit_sink: "InMemorySecurityAuditSink | None" = None
 
     def __post_init__(self) -> None:
         if self.max_upload_size_bytes < 1:
@@ -42,12 +46,37 @@ class SecurityPolicy:
 
     def authorize(self, principal: SecurityPrincipal, capability: str) -> None:
         if capability not in self.allowed_capabilities:
+            self._audit(principal, capability, "denied", "capability_not_allowed")
             raise PermissionError(f"capability is not allowed: {capability}")
         required = self.required_roles.get(capability, frozenset())
         if required and not required.intersection(principal.roles):
+            self._audit(principal, capability, "denied", "role_required")
             raise PermissionError(
                 f"principal is not authorized for capability: {capability}"
             )
+        self._audit(principal, capability, "allowed")
+
+    def _audit(
+        self,
+        principal: SecurityPrincipal,
+        capability: str,
+        outcome: str,
+        reason: str | None = None,
+    ) -> None:
+        if self.audit_sink is None:
+            return
+        from .security_audit import SecurityAuditEvent
+
+        self.audit_sink.record(
+            SecurityAuditEvent(
+                event_type="security.authorization",
+                capability=capability,
+                outcome=outcome,
+                actor_id=principal.actor_id,
+                tenant_id=principal.tenant_id,
+                reason=reason,
+            )
+        )
 
     def validate_uploads(self, uploads: Iterable[Mapping[str, object]]) -> None:
         for upload in uploads:
