@@ -19,7 +19,24 @@ class ChainlitConversationStore:
             raise ValueError("data_layer is required")
         self.data_layer = data_layer
 
-    async def ensure_conversation(self, conversation_id: str, actor_id: str, session_id: str, *, metadata: dict[str, Any] | None = None) -> Conversation:
+    @staticmethod
+    def _validate_tenant(thread: dict[str, Any], tenant_id: str | None) -> None:
+        if tenant_id is None:
+            return
+        stored_metadata = dict(thread.get("metadata") or {})
+        stored_tenant = stored_metadata.get("tenant_id")
+        if stored_tenant != tenant_id:
+            raise PermissionError("conversation belongs to a different tenant")
+
+    async def ensure_conversation(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        session_id: str,
+        *,
+        tenant_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Conversation:
         if not conversation_id or not actor_id or not session_id:
             raise ValueError("conversation_id, actor_id, and session_id are required")
         existing = await self.data_layer.get_thread(conversation_id)
@@ -31,20 +48,32 @@ class ChainlitConversationStore:
             stored_session = str(stored_metadata.get("session_id") or session_id)
             if stored_session != session_id:
                 raise PermissionError("conversation belongs to a different session")
+            self._validate_tenant(existing, tenant_id)
             return Conversation(
                 conversation_id,
                 actor_id,
                 stored_session,
-                str(existing.get("createdAt") or ""),
-                str(existing.get("updatedAt") or existing.get("createdAt") or ""),
-                stored_metadata,
+                tenant_id=stored_metadata.get("tenant_id"),
+                created_at=str(existing.get("createdAt") or ""),
+                updated_at=str(existing.get("updatedAt") or existing.get("createdAt") or ""),
+                metadata=stored_metadata,
             )
+
+        stored_metadata = {**(metadata or {}), "session_id": session_id}
+        if tenant_id is not None:
+            stored_metadata["tenant_id"] = tenant_id
         await self.data_layer.update_thread(
             conversation_id,
             user_id=actor_id,
-            metadata={**(metadata or {}), "session_id": session_id},
+            metadata=stored_metadata,
         )
-        return Conversation(conversation_id, actor_id, session_id, metadata=dict(metadata or {}))
+        return Conversation(
+            conversation_id,
+            actor_id,
+            session_id,
+            tenant_id=tenant_id,
+            metadata=stored_metadata,
+        )
 
     async def append_message(self, message: ConversationMessage) -> ConversationMessage:
         if not isinstance(message, ConversationMessage):
@@ -67,7 +96,14 @@ class ChainlitConversationStore:
         })
         return message
 
-    async def list_messages(self, conversation_id: str, actor_id: str, *, limit: int = 100) -> tuple[ConversationMessage, ...]:
+    async def list_messages(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+        limit: int = 100,
+    ) -> tuple[ConversationMessage, ...]:
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise ValueError("limit must be a positive integer")
         thread = await self.data_layer.get_thread(conversation_id)
@@ -76,6 +112,7 @@ class ChainlitConversationStore:
         stored_actor = thread.get("userId")
         if stored_actor is not None and str(stored_actor) != actor_id:
             raise PermissionError("conversation belongs to a different actor")
+        self._validate_tenant(thread, tenant_id)
         messages = []
         for step in thread.get("steps", [])[-limit:]:
             role = str(step.get("type", "")).removesuffix("_message")
@@ -90,12 +127,19 @@ class ChainlitConversationStore:
             ))
         return tuple(messages)
 
-    async def delete_conversation(self, conversation_id: str, actor_id: str) -> bool:
+    async def delete_conversation(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+    ) -> bool:
         thread = await self.data_layer.get_thread(conversation_id)
         if not thread:
             return False
         stored_actor = thread.get("userId")
         if stored_actor is not None and str(stored_actor) != actor_id:
             raise PermissionError("conversation belongs to a different actor")
+        self._validate_tenant(thread, tenant_id)
         await self.data_layer.delete_thread(conversation_id)
         return True
