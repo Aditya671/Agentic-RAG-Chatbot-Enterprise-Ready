@@ -19,6 +19,8 @@ class SecurityPrincipal:
             raise ValueError("actor_id must be non-empty")
         if not self.session_id.strip():
             raise ValueError("session_id must be non-empty")
+        if self.tenant_id is not None and not self.tenant_id.strip():
+            raise ValueError("tenant_id must be non-empty when provided")
         if any(not role.strip() for role in self.roles):
             raise ValueError("roles must contain non-empty strings")
 
@@ -27,7 +29,9 @@ class SecurityPrincipal:
 class SecurityPolicy:
     """Deterministic capability and upload policy."""
 
-    allowed_capabilities: frozenset[str] = frozenset({"question", "upload", "index_status"})
+    allowed_capabilities: frozenset[str] = frozenset(
+        {"question", "upload", "index_status"}
+    )
     required_roles: Mapping[str, frozenset[str]] = field(default_factory=dict)
     allowed_upload_extensions: frozenset[str] = frozenset({".pdf", ".txt", ".csv"})
     max_upload_size_bytes: int = 10 * 1024 * 1024
@@ -41,7 +45,9 @@ class SecurityPolicy:
             raise PermissionError(f"capability is not allowed: {capability}")
         required = self.required_roles.get(capability, frozenset())
         if required and not required.intersection(principal.roles):
-            raise PermissionError(f"principal is not authorized for capability: {capability}")
+            raise PermissionError(
+                f"principal is not authorized for capability: {capability}"
+            )
 
     def validate_uploads(self, uploads: Iterable[Mapping[str, object]]) -> None:
         for upload in uploads:
@@ -50,8 +56,8 @@ class SecurityPolicy:
             if not isinstance(name, str) or not name.strip():
                 raise ValueError("upload name must be a non-empty string")
             name = name.strip()
-            if "\x00" in name or name in {".", ".."}:
-                raise ValueError("upload name contains an invalid path component")
+            if "\x00" in name or name in {".", ".."} or "/" in name or "\\" in name:
+                raise ValueError("upload name must be a basename without path separators")
             extension = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
             if extension not in self.allowed_upload_extensions:
                 raise ValueError(f"unsupported upload extension: {extension or '<none>'}")
