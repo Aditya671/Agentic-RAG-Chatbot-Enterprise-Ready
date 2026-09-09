@@ -160,6 +160,7 @@ class ApplicationRuntime:
                 normalized.conversation_id,
                 normalized.actor_id,
                 normalized.session_id,
+                tenant_id=normalized.tenant_id,
             )
 
         with self._observability.run(
@@ -237,11 +238,21 @@ class ApplicationRuntime:
                 )
                 raise
 
-    async def history(self, conversation_id: str, actor_id: str, *, limit: int = 100):
+    async def history(
+        self,
+        conversation_id: str,
+        actor_id: str,
+        *,
+        tenant_id: str | None = None,
+        limit: int = 100,
+    ):
         if self._conversation_store is None:
             raise RuntimeError("conversation persistence is not configured")
         return await ConversationService(self._conversation_store).history(
-            conversation_id, actor_id, limit=limit
+            conversation_id,
+            actor_id,
+            tenant_id=tenant_id,
+            limit=limit,
         )
 
     def _coerce_result(
