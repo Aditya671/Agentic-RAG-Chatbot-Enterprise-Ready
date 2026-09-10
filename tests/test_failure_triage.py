@@ -1,6 +1,6 @@
 from agentic_rag_chatbot_enterprise_ready.backend.reliability import (
-    FailureTriageEngine,
     FailureClass,
+    FailureTriageEngine,
     RetrospectiveEngine,
 )
 from agentic_rag_chatbot_enterprise_ready.backend.reliability.contracts import ExecutionTrace
@@ -28,15 +28,20 @@ def test_failure_triage_reuses_existing_retrospective_findings():
     assert triage.items[0].summary == retrospective.findings[0].summary
 
 
-def test_failure_triage_has_no_identity_or_error_payload_fields():
+def test_failure_triage_surface_does_not_expose_identity_or_raw_error_payload():
     triage = FailureTriageEngine().analyze(_error_retrospective())
-    payload = repr(triage)
-    assert "actor-1" not in payload
-    assert "session-1" not in payload
-    assert "provider unavailable" not in payload
+    assert triage.run_id == "run-1"
+    assert triage.outcome == "error"
+    surface = " ".join(
+        f"{item.category} {item.priority.value} {item.summary} {item.action}"
+        for item in triage.items
+    )
+    assert "actor-1" not in surface
+    assert "session-1" not in surface
+    assert "provider unavailable" not in surface
 
 
-def test_failure_triage_empty_success_is_low_priority():
+def test_failure_triage_empty_success_is_low_operator_priority():
     trace = ExecutionTrace(run_id="run-2")
     trace.outcome = "success"
     retrospective = RetrospectiveEngine().analyze(trace)
