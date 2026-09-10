@@ -1,7 +1,7 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 75 — Security & Governance (implemented; live cloud validation remains environment-gated)  
+**Current implemented frontier:** Phase 76 — Production Observability & Operations (alerting contract implemented; failure triage/runbooks and deployment validation remain)  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
 > This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, the client-facing application surface, and the Phase 75 security/governance enforcement layers.
@@ -114,6 +114,21 @@ Phase 75 is therefore **code-complete and deterministic-test complete, with prod
 
 Extend the reliability model into production operations: health/readiness, metrics, alert adapters, trace retention, operational dashboards, failure triage, runbooks, and safe telemetry/data retention.
 
+Implemented in Phase 76:
+
+- provider-neutral health/readiness contracts;
+- bounded deterministic metrics and telemetry retention policy;
+- bounded retention views over trace and audit telemetry;
+- provider-neutral operational telemetry facade;
+- canonical runtime request/duration/error telemetry wiring;
+- deterministic threshold-based operational alerting over the existing `HealthSnapshot` contract.
+
+Remaining Phase 76 gates:
+
+- failure triage contract and operational diagnosis views;
+- production runbooks and escalation guidance;
+- safe operational dashboard/export integration without vendor lock-in.
+
 ## Phase 77 — Deployment & Release Readiness
 
 Validate Docker/runtime packaging, production configuration, Azure dependency mapping, startup/readiness, scaling assumptions, rollback, release validation, and the operational runbook.
@@ -174,9 +189,12 @@ Technology is not added merely because it is enterprise-branded.
 - [x] No arbitrary remote code execution surface is reintroduced.
 - [x] Security implementation boundaries are deterministically tested.
 - [x] Security audit persistence and retention are explicit and bounded.
+- [x] Production telemetry contracts are safe and bounded.
+- [x] Runtime request/error/duration telemetry is emitted at the canonical boundary when configured.
+- [x] Deterministic alert thresholds exist over monitored health facts.
 - [ ] Live authenticated identity/tenant ownership validation executed against the target cloud deployment.
 - [ ] Errors are explicit and diagnosable across all production paths.
-- [ ] Production telemetry is safe and bounded.
+- [ ] Operational failure triage and runbooks are complete.
 - [ ] Deployment and rollback are documented.
 
 ---
@@ -204,7 +222,7 @@ The project continues from the **actual implemented frontier**, not from reposit
         ↓
 75 Security & Governance                         ✓* 
         ↓
-76 Production Observability & Operations
+76 Production Observability & Operations         ◐
         ↓
 77 Deployment & Release Readiness
         ↓
@@ -215,6 +233,6 @@ Provider Expansion
 
 ## Immediate next task
 
-**Phase 76 — Production Observability & Operations.**
+**Phase 76 — Failure Triage & Operational Runbooks.**
 
-Begin with health/readiness, production-safe metrics, bounded telemetry, operational trace retention, alerting adapters, and failure triage/runbooks, while carrying the Phase 75 live validation procedure into the deployment/release validation track.
+Build this on the existing `FailureClass`, `RetrospectiveEngine`, `MonitoringEngine`, and canonical runtime evidence instead of introducing a second failure taxonomy. Then carry the live Phase 75 validation procedure and operational checks into Phase 77 deployment/release validation.
