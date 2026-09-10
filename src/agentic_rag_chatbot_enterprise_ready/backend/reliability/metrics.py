@@ -1,6 +1,7 @@
 """Provider-neutral, bounded operational metrics primitives."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from threading import RLock
 from typing import Mapping
@@ -84,7 +85,7 @@ class InMemoryMetrics:
         normalized_name = self._normalize_name(name)
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise TypeError("metric value must be numeric")
-        if not float(value) == float(value):
+        if not math.isfinite(float(value)):
             raise ValueError("metric value must be finite")
         normalized_labels = self._normalize_labels(labels)
         key = (normalized_name, tuple(sorted(normalized_labels.items())))
