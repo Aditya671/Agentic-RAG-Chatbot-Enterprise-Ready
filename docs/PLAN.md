@@ -1,7 +1,7 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 76 — Production Observability & Operations (implementation-complete; live deployment validation remains)  
+**Current implemented frontier:** Phase 77 — Deployment & Release Readiness (release identity contract implemented; target-environment validation remains)  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
 > This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, the client-facing application surface, and the Phase 75 security/governance enforcement layers.
@@ -26,9 +26,7 @@ A development and evaluation layer that can:
 
 The second system is not a side project. It is what allows the first system to become reliable rather than merely functional.
 
----
-
-# 2. Engineering Model
+## 2. Engineering Model
 
 ```text
                          Agent Application
@@ -60,81 +58,49 @@ The second system is not a side project. It is what allows the first system to b
 
 The feedback loop is the core architecture of the project.
 
----
-
-# 3. Completed Engineering Foundation
+## 3. Completed Engineering Foundation
 
 Phases 55–67 remain complete as previously documented: reliability contracts, deterministic replay, durable persistence, evaluation, scenario-aware evaluation, reviewed regression promotion, claim/evidence grounding, architecture benchmarking, benchmark governance/reporting, observability productization, retrospective analysis, and the reliability improvement loop.
 
----
-
-# 4. Completed Application Integration Gates
+## 4. Completed Application Integration Gates
 
 Phases 68–74 remain complete as previously documented: canonical runtime, document ingestion, retrieval→grounded-answer boundary, end-to-end RAG journey, conversation persistence, background processing/idempotency, and frontend/API integration.
 
----
+## 5. Enterprise & Operational Readiness
 
-# 5. Enterprise & Operational Readiness
+### Phase 75 — Security & Governance
 
-## Phase 75 — Security & Governance
+**Implemented frontier.** The phase now has deterministic implementation coverage across all planned security gates, with the remaining live authenticated ownership/security run reserved for the target deployment environment.
 
-**Implemented frontier.** The phase now has deterministic implementation coverage across all planned security gates:
+### Phase 76 — Production Observability & Operations
 
-- provider-neutral `SecurityPrincipal` and deterministic capability authorization;
-- authenticated actor/session requirements for protected runtime execution;
-- bounded upload validation including extension, byte-content, size, and basename/path-component checks;
-- tenant-aware conversation ownership across provider-neutral and Chainlit persistence boundaries;
-- explicit tenant/role propagation through the application surface and runtime;
-- provider-neutral authenticated context extraction containing only actor, tenant, and role attributes;
-- live OAuth secret minimization at the maintained Chainlit boundary: access tokens, ID tokens, and raw claims are not persisted in user metadata;
-- configurable deterministic RBAC policy with conservative built-in defaults and explicit capability-to-role validation;
-- PII-bounded security authorization audit events with deterministic local sink support;
-- durable JSONL security audit persistence with bounded recent reads, time-based retention, count-based retention, and atomic pruning;
-- runtime configuration hardening for required index/LLM mappings and malformed entries;
-- deterministic regression coverage for authorization, upload safety, tenant isolation, OAuth-secret resistance, RBAC, audit persistence, configuration hardening, and authenticated ownership propagation.
+**Implementation frontier complete.** Phase 76 contains provider-neutral health/readiness, bounded telemetry and retention, canonical runtime metrics, deterministic alerting, failure triage, safe dashboard/export, and the production operational runbook.
 
-### Live validation boundary
+### Phase 77 — Deployment & Release Readiness
 
-The remaining Phase 75 verification is **environment-gated integration validation**, not another source-code implementation gate. The repository adapter already fails closed on actor and tenant ownership for existing Chainlit threads, including history and deletion, and the frontend propagates authenticated actor/tenant/roles through the canonical application surface. However, this GitHub engineering session does not have the deployment's real OAuth credentials, Chainlit runtime session, Cosmos database, or production data-layer endpoint, so it cannot honestly claim a live cloud-backed ownership run.
+**Current implementation frontier.** The repository now has:
 
-The authoritative live validation procedure is:
+- a Python 3.12 production container definition;
+- a non-root container user and explicit deployment context exclusions;
+- canonical `agentic-rag --frontend` launch behavior;
+- deterministic `agentic-rag --check` startup diagnostics used for container health;
+- external runtime configuration and secret handling rules;
+- immutable `ReleaseManifest` identity containing release ID, exact source commit SHA, image digest, configuration version, and creation timestamp;
+- deterministic validation of release-manifest identity fields without storing secrets or raw configuration values;
+- deployment and rollback documentation requiring immutable image/configuration artifacts.
 
-1. deploy the current `main` build into the target non-production environment;
-2. authenticate through the configured OAuth provider;
-3. verify the callback persists only `identifier`, `tenant_id`, and normalized `roles` (never access/ID tokens or raw claims);
-4. create a conversation as actor A in tenant A;
-5. verify actor A can read/append/delete only its own tenant-owned conversation;
-6. verify actor B or tenant B receives an explicit ownership denial for the same thread;
-7. inspect the actual Chainlit/Cosmos records and confirm tenant metadata and actor ownership match the authenticated context;
-8. execute the security authorization paths and confirm durable audit records contain bounded identity/authorization facts only.
+Remaining Phase 77 gates:
 
-Phase 75 is therefore **code-complete and deterministic-test complete, with production-like live validation pending in the actual deployment environment**.
-
-## Phase 76 — Production Observability & Operations
-
-**Implementation frontier complete.** Phase 76 now contains:
-
-- provider-neutral health/readiness contracts;
-- bounded deterministic metrics and telemetry retention policy;
-- bounded retention views over trace and audit telemetry;
-- provider-neutral operational telemetry facade;
-- canonical runtime request/duration/error telemetry wiring;
-- deterministic threshold-based operational alerting over the existing `HealthSnapshot` contract;
-- deterministic failure triage derived from existing retrospective findings and failure taxonomy;
-- a bounded read-only operational dashboard/export contract with no raw trace or identity/payload surface;
-- a production operational runbook covering first response, alert handling, triage, safe export, escalation, and the Phase 75 live-validation handoff.
-
-Phase 76 intentionally does **not** introduce a vendor-specific observability, dashboard, alerting, or notification SDK. Export/notification transport remains a deployment concern, while the repository owns deterministic contracts and safety boundaries.
-
-## Phase 77 — Deployment & Release Readiness
-
-Validate Docker/runtime packaging, production configuration, Azure dependency mapping, startup/readiness, scaling assumptions, rollback, release validation, operational runbook execution, and the remaining live Phase 75 cloud-validation procedure.
+- build and execute the image in the target environment;
+- validate startup/readiness and real Azure dependency configuration;
+- execute the Phase 75 live authenticated actor/tenant ownership and security procedure;
+- perform smoke validation through the real Chainlit/Cosmos/data-layer path;
+- validate immutable release promotion and rollback in the target production-like environment;
+- record deployment-specific telemetry/alert transport and release evidence.
 
 GitHub Actions is **not** a required validation mechanism. Local deterministic validation and explicit cloud-integration validation remain authoritative.
 
----
-
-# 6. Post-MVP Provider Expansion
+## 6. Post-MVP Provider Expansion
 
 Only after the core application + engineering feedback loop is reliable should provider expansion begin.
 
@@ -157,11 +123,9 @@ Every provider follows:
 
 Technology is not added merely because it is enterprise-branded.
 
----
+## 7. Definition of Done
 
-# 7. Definition of Done
-
-## Application
+### Application
 
 - [x] User can ask questions through the maintained runtime.
 - [x] User can upload supported documents.
@@ -170,7 +134,7 @@ Technology is not added merely because it is enterprise-branded.
 - [x] Conversation state works through the canonical persistence contract where configured.
 - [x] Frontend/API supports the complete user journey.
 
-## Reliability
+### Reliability
 
 - [x] Every meaningful run has a trace.
 - [x] Evidence and provenance survive the execution path.
@@ -181,7 +145,7 @@ Technology is not added merely because it is enterprise-branded.
 - [x] Architecture variants can be benchmarked under equivalent conditions.
 - [x] Benchmark results are reproducible and comparable.
 
-## Safety & operations
+### Safety & operations
 
 - [x] No arbitrary remote code execution surface is reintroduced.
 - [x] Security implementation boundaries are deterministically tested.
@@ -192,12 +156,14 @@ Technology is not added merely because it is enterprise-branded.
 - [x] Operational failure triage is deterministic and linked to existing findings.
 - [x] Operational runbook and escalation guidance are documented.
 - [x] Safe dashboard/export contract exists without vendor lock-in.
+- [x] Production packaging and canonical container startup are defined.
+- [x] Immutable release identity contract exists for promotion/rollback evidence.
 - [ ] Live authenticated identity/tenant ownership validation executed against the target cloud deployment.
-- [ ] Deployment and rollback validated in the target production-like environment.
+- [ ] Deployment image built and executed in the target production-like environment.
+- [ ] Azure/configuration dependency mapping validated with real deployment settings.
+- [ ] Release promotion and rollback validated against immutable artifacts.
 
----
-
-# 8. Immediate Execution Order
+## 8. Immediate Execution Order
 
 The project continues from the **actual implemented frontier**, not from repository cleanup:
 
@@ -222,7 +188,7 @@ The project continues from the **actual implemented frontier**, not from reposit
         ↓
 76 Production Observability & Operations         ✓* 
         ↓
-77 Deployment & Release Readiness
+77 Deployment & Release Readiness                ◐
         ↓
 Provider Expansion
 ```
@@ -231,6 +197,6 @@ Provider Expansion
 
 ## Immediate next task
 
-**Phase 77 — Deployment & Release Readiness.**
+**Phase 77 — Target-Environment Validation & Release Closure.**
 
-Begin from the existing contracts rather than adding new application architecture: package the maintained runtime, validate production configuration and startup/readiness, execute the live Phase 75 ownership procedure in the target non-production environment, validate rollback/release steps, and document the deployment-specific alert/export transport.
+Execute the existing container/startup path against the target non-production environment, validate real Azure and persistence dependencies, run the outstanding Phase 75 authenticated security procedure, exercise smoke and rollback paths, and record immutable release evidence. Once those gates pass, the project reaches its production-release closure boundary before any post-MVP provider expansion.
