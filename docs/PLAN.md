@@ -1,14 +1,14 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 74 — Frontend / API Integration  
+**Current implemented frontier:** Phase 75 — Security & Governance (in progress)  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
-> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, and the client-facing application surface. Future work must build on those capabilities rather than restarting the project from application plumbing.
+> This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, the client-facing application surface, and the first security/governance enforcement layers. Future work must build on those capabilities rather than restarting the project from application plumbing.
 
 ---
 
-## 1. What We Are Building
+# 1. What We Are Building
 
 The project has two tightly connected products:
 
@@ -264,9 +264,28 @@ The client-facing layer can invoke upload, status, question, evidence, and conve
 
 # 5. Enterprise & Operational Readiness
 
-## Phase 75 — Security & Governance
+## Phase 75 — Security & Governance (in progress)
 
-Implement and test authentication, authorization/RBAC, tenant/user isolation where applicable, secret handling, upload validation, tool/input boundaries, PII-sensitive logging, audit events, and dependency/configuration hardening.
+The canonical security boundary now includes the following implemented slices:
+
+- provider-neutral `SecurityPrincipal` and deterministic capability authorization;
+- authenticated actor/session requirements for protected runtime execution;
+- bounded upload validation including extension, byte-content, size, and basename/path-component checks;
+- tenant-aware conversation ownership across provider-neutral and Chainlit persistence boundaries;
+- explicit tenant/role propagation through the application surface and runtime;
+- provider-neutral authenticated context extraction containing only actor, tenant, and role attributes;
+- PII-bounded security authorization audit events with deterministic local sink support;
+- deterministic regression tests for authorization, upload safety, tenant isolation, and audit behavior.
+
+### Remaining Phase 75 gates
+
+1. **Live OAuth secret minimization:** remove legacy persistence of OAuth access tokens, ID tokens, and raw claims from Chainlit user metadata while preserving transient Graph lookup where required.
+2. **Configurable RBAC:** define deployable role-to-capability policy rather than relying only on generic role intersection contracts.
+3. **Production audit durability:** connect the audit contract to an explicit durable sink and retention policy without storing prompts, file contents, tokens, or raw claims.
+4. **Dependency/configuration hardening:** verify dependency constraints, secret/config sources, secure defaults, and environment-specific failure behavior.
+5. **Live identity/data-layer validation:** validate authenticated identity, tenant propagation, and ownership against the actual Chainlit/Cosmos boundary.
+
+Phase 75 must not be marked complete until these gates have deterministic coverage plus explicit live/integration validation where provider behavior is involved.
 
 ## Phase 76 — Production Observability & Operations
 
@@ -358,7 +377,11 @@ The project continues from the **actual implemented frontier**, not from reposit
         ↓
 74 Frontend / API Integration                    ✓
         ↓
-75–77 Enterprise / Production Readiness
+75 Security & Governance                         → in progress
+        ↓
+76 Production Observability & Operations
+        ↓
+77 Deployment & Release Readiness
         ↓
 Provider Expansion
 ```
@@ -367,4 +390,4 @@ Provider Expansion
 
 **Phase 75 — Security & Governance.**
 
-The next gate should harden the now-complete application journey with explicit authentication/authorization, tenant and user isolation where applicable, secret handling, upload validation, tool/input boundaries, PII-safe logging, auditability, and dependency/configuration security.
+The next gate should close the live authentication secret-retention boundary, then complete configurable RBAC, production audit durability/retention, dependency/configuration hardening, and live identity/data-layer validation before Phase 76 begins.
