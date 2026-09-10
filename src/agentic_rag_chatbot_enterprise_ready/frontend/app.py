@@ -30,6 +30,9 @@ from agentic_rag_chatbot_enterprise_ready.frontend.application_surface import (
     ApplicationView,
     EvidenceView,
 )
+from agentic_rag_chatbot_enterprise_ready.backend.reliability.auth_context import (
+    extract_auth_context,
+)
 from app_logger import setup_logger
 
 
@@ -254,12 +257,16 @@ async def on_oauth_callback(
     default_user: User,
     id_token: Optional[str] = None,
 ) -> Optional[User]:
-    # Store only what is required for this session. Do not log tokens.
-    default_user.metadata["id_token"] = token
-    default_user.metadata["claims"] = raw_user
-    default_user.metadata["tenant"] = raw_user.get("tid")
-    default_user.metadata["groups"] = await _graph_groups(token)
-    default_user.display_name = raw_user.get("displayName")
+    # Persist only non-secret identity attributes needed by application authorization.
+    default_user.metadata["tenant_id"] = raw_user.get("tid")
+    default_user.metadata["roles"] = tuple(
+        group.get("id", "")
+        for group in await _graph_groups(token)
+        if group.get("id")
+    )
+    display_name = raw_user.get("displayName")
+    if display_name:
+        default_user.display_name = display_name
     return default_user
 
 
@@ -361,12 +368,24 @@ def _apply_agent_settings(agent, settings: Dict[str, Any]) -> None:
     agent.set_graph_rag(enable_graph_rag=settings["enable_graph_rag"])
 
 
+def _auth_context() -> Any:
+    return extract_auth_context(cl.user_session.get("user"))
+
+
 async def _ensure_user_groups(user: Optional[User]) -> None:
-    if user is None or "groups" in user.metadata:
+    # Group membership is derived once per authenticated session and never from persisted tokens.
+    if user is None or "roles" in user.metadata:
         return
 
-    groups = await _graph_groups(user.metadata.get("id_token", ""))
-    user.metadata["groups"] = groups
+    tenant_id = user.metadata.get("tenant_id")
+    roles = tuple(
+        group.get("id", "")
+        for group in await _graph_groups("")
+        if group.get("id")
+    )
+    if tenant_id:
+        user.metadata["tenant_id"] = str(tenant_id)
+    user.metadata["roles"] = roles
     cl.user_session.set("user", user)
 
 
@@ -380,9 +399,15 @@ async def _ensure_settings() -> Dict[str, Any]:
 
 
 def _actor_id() -> str:
-    user = cl.user_session.get("user")
-    identifier = getattr(user, "identifier", None) if user is not None else None
-    return str(identifier or "local_user")
+    return _auth_context().actor_id
+
+
+def _tenant_id() -> str | None:
+    return _auth_context().tenant_id
+
+
+def _roles() -> frozenset[str]:
+    return _auth_context().roles
 
 
 def _conversation_id(explicit: Optional[str] = None) -> str:
@@ -463,7 +488,6 @@ async def start():
         cl.user_session.set("chat_history", [])
         cl.user_session.set("indexing_task_ids", [])
         cl.user_session.set("application_history", None)
-        await _ensure_user_groups(cl.user_session.get("user"))
         settings = await _ensure_settings()
         await _ensure_agent(settings)
 
@@ -504,7 +528,6 @@ async def on_chat_resume(thread):
     if "elements" in thread:
         await _restore_pdf_elements(thread, settings)
 
-    await _ensure_user_groups(cl.user_session.get("user"))
     agent = await _ensure_agent(settings)
 
     if thread_id:
@@ -513,6 +536,7 @@ async def on_chat_resume(thread):
             history = await surface.history(
                 str(thread_id),
                 actor_id=_actor_id(),
+                tenant_id=_tenant_id(),
             )
             cl.user_session.set("application_history", history.to_dict())
         except Exception:
@@ -622,6 +646,8 @@ async def _surface_question(
         session_id=str(cl.user_session.get("id") or "unknown_session"),
         actor_id=_actor_id(),
         conversation_id=_conversation_id(conversation_id),
+        tenant_id=_tenant_id(),
+        roles=_roles(),
     )
 
 
@@ -644,6 +670,8 @@ async def _surface_upload(
         session_id=str(cl.user_session.get("id") or "unknown_session"),
         actor_id=_actor_id(),
         conversation_id=cl.user_session.get("conversation_id"),
+        tenant_id=_tenant_id(),
+        roles=_roles(),
     )
 
 
@@ -813,6 +841,8 @@ async def check_indexing_status(action: cl.Action):
             task_id,
             session_id=str(cl.user_session.get("id") or "unknown_session"),
             actor_id=_actor_id(),
+            tenant_id=_tenant_id(),
+            roles=_roles(),
         )
         await cl.Message(content=view.response_text).send()
     except Exception:
