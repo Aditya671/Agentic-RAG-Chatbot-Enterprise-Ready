@@ -1,7 +1,7 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 76 — Production Observability & Operations (alerting contract implemented; failure triage/runbooks and deployment validation remain)  
+**Current implemented frontier:** Phase 76 — Production Observability & Operations (failure triage boundary implemented; runbooks/dashboard export and deployment validation remain)  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
 > This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, the client-facing application surface, and the Phase 75 security/governance enforcement layers.
@@ -121,17 +121,17 @@ Implemented in Phase 76:
 - bounded retention views over trace and audit telemetry;
 - provider-neutral operational telemetry facade;
 - canonical runtime request/duration/error telemetry wiring;
-- deterministic threshold-based operational alerting over the existing `HealthSnapshot` contract.
+- deterministic threshold-based operational alerting over the existing `HealthSnapshot` contract;
+- deterministic failure triage derived from existing retrospective findings and failure taxonomy.
 
 Remaining Phase 76 gates:
 
-- failure triage contract and operational diagnosis views;
 - production runbooks and escalation guidance;
 - safe operational dashboard/export integration without vendor lock-in.
 
 ## Phase 77 — Deployment & Release Readiness
 
-Validate Docker/runtime packaging, production configuration, Azure dependency mapping, startup/readiness, scaling assumptions, rollback, release validation, and the operational runbook.
+Validate Docker/runtime packaging, production configuration, Azure dependency mapping, startup/readiness, scaling assumptions, rollback, release validation, and the operational runbook. Carry the Phase 75 live authenticated ownership procedure into this deployment validation track.
 
 GitHub Actions is **not** a required validation mechanism. Local deterministic validation and explicit cloud-integration validation remain authoritative.
 
@@ -192,9 +192,11 @@ Technology is not added merely because it is enterprise-branded.
 - [x] Production telemetry contracts are safe and bounded.
 - [x] Runtime request/error/duration telemetry is emitted at the canonical boundary when configured.
 - [x] Deterministic alert thresholds exist over monitored health facts.
+- [x] Operational failure triage is deterministic and linked to existing findings.
 - [ ] Live authenticated identity/tenant ownership validation executed against the target cloud deployment.
 - [ ] Errors are explicit and diagnosable across all production paths.
-- [ ] Operational failure triage and runbooks are complete.
+- [ ] Production runbooks and escalation guidance are complete.
+- [ ] Safe operational dashboard/export integration is complete.
 - [ ] Deployment and rollback are documented.
 
 ---
@@ -233,6 +235,6 @@ Provider Expansion
 
 ## Immediate next task
 
-**Phase 76 — Failure Triage & Operational Runbooks.**
+**Phase 76 — Operational Runbooks & Safe Dashboard/Export Boundary.**
 
-Build this on the existing `FailureClass`, `RetrospectiveEngine`, `MonitoringEngine`, and canonical runtime evidence instead of introducing a second failure taxonomy. Then carry the live Phase 75 validation procedure and operational checks into Phase 77 deployment/release validation.
+Complete the operator-facing runbook/escalation contract and a provider-neutral dashboard/export boundary over the existing health, metric, alert, trace, and triage contracts. Then carry the live Phase 75 validation procedure into Phase 77 deployment/release validation.
