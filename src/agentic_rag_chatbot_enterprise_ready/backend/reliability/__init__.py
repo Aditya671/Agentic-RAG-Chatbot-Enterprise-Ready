@@ -10,6 +10,7 @@ from .telemetry_policy import TelemetryRetentionPolicy
 from .retained_store import RetainedAuditSink, RetainedTraceStore
 from .operational_telemetry import OperationalTelemetry, build_operational_telemetry
 from .alerting import Alert, AlertEngine, AlertPolicy, AlertRule, AlertSeverity
+from .triage import FailureTriage, FailureTriageEngine, TriageItem, TriagePriority
 from .benchmark import (
     ArchitectureAggregate,
     ArchitectureBenchmark,
@@ -72,7 +73,7 @@ from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationRes
 from .store import InMemoryReliabilityStore
 
 __all__ = [
-    "AgentObservability", "HealthCheck", "HealthReport", "HealthService", "HealthStatus", "InMemoryMetrics", "MetricSnapshot", "TelemetryRetentionPolicy", "RetainedAuditSink", "RetainedTraceStore", "OperationalTelemetry", "build_operational_telemetry", "Alert", "AlertEngine", "AlertPolicy", "AlertRule", "AlertSeverity",
+    "AgentObservability", "HealthCheck", "HealthReport", "HealthService", "HealthStatus", "InMemoryMetrics", "MetricSnapshot", "TelemetryRetentionPolicy", "RetainedAuditSink", "RetainedTraceStore", "OperationalTelemetry", "build_operational_telemetry", "Alert", "AlertEngine", "AlertPolicy", "AlertRule", "AlertSeverity", "FailureTriage", "FailureTriageEngine", "TriageItem", "TriagePriority",
     "SecurityPolicy", "SecurityPrincipal", "principal_from_request",
     "SecurityAuditEvent", "InMemorySecurityAuditSink", "JsonlSecurityAuditSink", "build_security_policy",
     "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
@@ -86,10 +87,6 @@ __all__ = [
     "ObservedFact", "Retrospective", "RetrospectiveEngine", "RetrospectiveFinding", "RetrospectiveRecommendation",
     "InMemoryReliabilityStore", "DocumentIngestionService", "IngestionArtifact", "IngestionResult",
     "RetrievalResult", "RetrievalService", "FailureClass", "InMemoryArtifactIdempotencyStore", "InMemoryBackgroundTaskStore",
-    "TaskStatus", "artifact_identities_from_paths", "artifact_idempotency_key", "build_artifact_identity",
-    "classify_failure", "normalize_artifact_filename",
-    "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec",
-    "BenchmarkContext", "BenchmarkMetrics", "BenchmarkConfig", "BenchmarkReport", "BenchmarkReporter",
-    "ArchitectureComparison", "BenchmarkDataset", "BenchmarkEvidenceFixture", "BenchmarkFixtureCatalog",
-    "BenchmarkScenario", "BenchmarkScenarioCatalog",
+    "TaskStatus", "artifact_identities_from_paths", "artifact_idempotency_key", "build_artifact_identity", "classify_failure", "normalize_artifact_filename",
+    "ArchitectureAggregate", "ArchitectureBenchmark", "ArchitectureBenchmarkRun", "ArchitectureSpec", "BenchmarkContext", "BenchmarkMetrics", "BenchmarkConfig", "BenchmarkReport", "BenchmarkReporter", "ArchitectureComparison", "BenchmarkDataset", "BenchmarkEvidenceFixture", "BenchmarkFixtureCatalog", "BenchmarkScenario", "BenchmarkScenarioCatalog",
 ]
