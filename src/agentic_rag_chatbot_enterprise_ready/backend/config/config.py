@@ -333,6 +333,24 @@ class Config:
                 "Missing required configuration sections: " + ", ".join(missing_sections)
             )
 
+        indexes = config["indexes"]
+        if not isinstance(indexes, dict) or not indexes:
+            raise ConfigurationError("'indexes' must be a non-empty mapping")
+        for name, settings in indexes.items():
+            if not isinstance(name, str) or not name.strip():
+                raise ConfigurationError("index names must be non-empty strings")
+            if not isinstance(settings, dict) or not settings:
+                raise ConfigurationError(f"configuration for index {name!r} must be a non-empty mapping")
+
+        llms = config["llms"]
+        if not isinstance(llms, dict) or not llms:
+            raise ConfigurationError("'llms' must be a non-empty mapping")
+        for name, settings in llms.items():
+            if not isinstance(name, str) or not name.strip():
+                raise ConfigurationError("LLM names must be non-empty strings")
+            if not isinstance(settings, dict) or not settings:
+                raise ConfigurationError(f"configuration for LLM {name!r} must be a non-empty mapping")
+
         if self.cloud_provider == CloudProvider.AZURE and not self.key_vault_url:
             raise ConfigurationError(
                 "Azure configuration requires azure.key_vault.url or AZURE_KEY_VAULT_URL"
