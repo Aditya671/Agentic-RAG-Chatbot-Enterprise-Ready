@@ -241,6 +241,10 @@ class ApplicationRuntime:
                         attributes={"response_length": len(result.response_text)},
                         status="completed",
                     )
+                    if self._telemetry is not None:
+                        self._telemetry.record_request(
+                            decision.capability.value, "success"
+                        )
                     return ApplicationExecution(result=result, trace=trace)
                 except Exception as exc:
                     self._observability.record_event(
@@ -253,6 +257,7 @@ class ApplicationRuntime:
                     raise
         except Exception as exc:
             if self._telemetry is not None:
+                self._telemetry.record_request(decision.capability.value, "error")
                 self._telemetry.record_error(
                     decision.capability.value,
                     type(exc).__name__,
@@ -264,8 +269,6 @@ class ApplicationRuntime:
                     decision.capability.value,
                     (perf_counter() - started) * 1000.0,
                 )
-                if self._telemetry.snapshot() and self._telemetry.snapshot()[0].name:
-                    pass
 
     async def history(
         self,
