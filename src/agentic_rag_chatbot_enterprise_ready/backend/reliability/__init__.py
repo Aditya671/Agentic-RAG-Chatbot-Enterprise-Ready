@@ -5,6 +5,7 @@ from .security_audit import InMemorySecurityAuditSink, SecurityAuditEvent
 from .security_audit_store import JsonlSecurityAuditSink
 from .security_rbac import build_security_policy
 from .health import HealthCheck, HealthReport, HealthService, HealthStatus
+from .metrics import InMemoryMetrics, MetricSnapshot
 from .benchmark import (
     ArchitectureAggregate,
     ArchitectureBenchmark,
@@ -67,7 +68,7 @@ from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationRes
 from .store import InMemoryReliabilityStore
 
 __all__ = [
-    "AgentObservability", "HealthCheck", "HealthReport", "HealthService", "HealthStatus",
+    "AgentObservability", "HealthCheck", "HealthReport", "HealthService", "HealthStatus", "InMemoryMetrics", "MetricSnapshot",
     "SecurityPolicy", "SecurityPrincipal", "principal_from_request",
     "SecurityAuditEvent", "InMemorySecurityAuditSink", "JsonlSecurityAuditSink", "build_security_policy",
     "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
