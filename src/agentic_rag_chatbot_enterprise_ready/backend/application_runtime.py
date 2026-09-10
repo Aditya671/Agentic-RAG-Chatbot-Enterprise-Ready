@@ -2,18 +2,20 @@
 
 The runtime owns request normalization, deterministic capability selection,
 execution lifecycle instrumentation, security enforcement, evidence handoff,
-response shaping, and optional conversation persistence. Provider-specific
-implementations are injected behind small call contracts so this layer does
-not become coupled to Azure, LlamaIndex, or a particular persistence provider.
+response shaping, optional operational telemetry, and optional conversation
+persistence. Provider-specific implementations are injected behind small call
+contracts so this layer does not become coupled to Azure, LlamaIndex, or a
+particular persistence provider.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
 from inspect import isawaitable
+from time import perf_counter
 from typing import Any, Awaitable, Callable, Mapping
 
-from .reliability import AgentObservability, Evidence
+from .reliability import AgentObservability, Evidence, OperationalTelemetry
 from .reliability.conversation import ConversationService, ConversationStore
 from .reliability.contracts import ExecutionTrace
 from .reliability.security import SecurityPolicy, principal_from_request
@@ -83,6 +85,11 @@ class ApplicationRuntime:
     Security is opt-in through ``security_policy`` for compatibility with
     deterministic tests and non-user-facing harnesses. User-facing adapters
     should inject a policy and authenticated principal fields.
+
+    Operational telemetry is opt-in through ``telemetry`` so callers can share
+    one bounded metrics collector across runtime instances. Telemetry contains
+    only stable capability/status/error-type dimensions and never identity or
+    request payload fields.
     """
 
     def __init__(
@@ -92,11 +99,13 @@ class ApplicationRuntime:
         observability: AgentObservability | None = None,
         conversation_store: ConversationStore | None = None,
         security_policy: SecurityPolicy | None = None,
+        telemetry: OperationalTelemetry | None = None,
     ) -> None:
         self._handlers = dict(handlers)
         self._observability = observability or AgentObservability()
         self._conversation_store = conversation_store
         self._security_policy = security_policy
+        self._telemetry = telemetry
 
     @staticmethod
     def normalize(request: ApplicationRequest) -> ApplicationRequest:
@@ -133,110 +142,130 @@ class ApplicationRuntime:
                 f"no handler configured for capability: {decision.capability.value}"
             )
 
-        if self._security_policy is not None:
-            principal = principal_from_request(
-                normalized.actor_id,
-                normalized.session_id,
-                tenant_id=normalized.tenant_id,
-                roles=normalized.roles,
-            )
-            self._security_policy.authorize(principal, decision.capability.value)
-            if decision.capability is Capability.UPLOAD:
-                uploads = normalized.payload.get("uploaded_files")
-                if not isinstance(uploads, list) or not uploads:
-                    raise ValueError("payload.uploaded_files must be a non-empty list")
-                self._security_policy.validate_uploads(uploads)
+        started = perf_counter()
+        if self._telemetry is not None:
+            self._telemetry.record_request(decision.capability.value, "started")
 
-        if self._conversation_store is not None and decision.capability is Capability.QUESTION:
-            if (
-                not normalized.conversation_id
-                or not normalized.actor_id
-                or not normalized.session_id
-            ):
-                raise ValueError(
-                    "conversation_id, actor_id, and session_id are required when persistence is enabled"
+        try:
+            if self._security_policy is not None:
+                principal = principal_from_request(
+                    normalized.actor_id,
+                    normalized.session_id,
+                    tenant_id=normalized.tenant_id,
+                    roles=normalized.roles,
                 )
-            await ConversationService(self._conversation_store).ensure(
-                normalized.conversation_id,
-                normalized.actor_id,
-                normalized.session_id,
-                tenant_id=normalized.tenant_id,
-            )
+                self._security_policy.authorize(principal, decision.capability.value)
+                if decision.capability is Capability.UPLOAD:
+                    uploads = normalized.payload.get("uploaded_files")
+                    if not isinstance(uploads, list) or not uploads:
+                        raise ValueError("payload.uploaded_files must be a non-empty list")
+                    self._security_policy.validate_uploads(uploads)
 
-        with self._observability.run(
-            session_id=normalized.session_id,
-            actor_id=normalized.actor_id,
-            attributes={
-                "capability": decision.capability.value,
-                "conversation_id": normalized.conversation_id or "",
-            },
-        ) as trace:
-            trace.conversation_id = normalized.conversation_id
-            self._observability.record_event(
-                trace,
-                name="request.normalized",
-                phase="normalization",
-                attributes={"question_present": bool(normalized.question)},
-                status="completed",
-            )
-            self._observability.record_event(
-                trace,
-                name="capability.selected",
-                phase="decision",
+            if self._conversation_store is not None and decision.capability is Capability.QUESTION:
+                if (
+                    not normalized.conversation_id
+                    or not normalized.actor_id
+                    or not normalized.session_id
+                ):
+                    raise ValueError(
+                        "conversation_id, actor_id, and session_id are required when persistence is enabled"
+                    )
+                await ConversationService(self._conversation_store).ensure(
+                    normalized.conversation_id,
+                    normalized.actor_id,
+                    normalized.session_id,
+                    tenant_id=normalized.tenant_id,
+                )
+
+            with self._observability.run(
+                session_id=normalized.session_id,
+                actor_id=normalized.actor_id,
                 attributes={
                     "capability": decision.capability.value,
-                    "reason": decision.reason,
+                    "conversation_id": normalized.conversation_id or "",
                 },
-                status="completed",
-            )
-            try:
-                with self._observability.phase(
-                    trace, "capability.execute", "execution"
-                ):
-                    raw = handler(normalized)
-                    if isawaitable(raw):
-                        raw = await raw
-                result = self._coerce_result(
-                    raw,
-                    decision.capability,
-                    trace,
-                    normalized.conversation_id,
-                )
-                if (
-                    self._conversation_store is not None
-                    and decision.capability is Capability.QUESTION
-                ):
-                    await ConversationService(self._conversation_store).record_turn(
-                        normalized.conversation_id,
-                        normalized.actor_id,
-                        question=normalized.question,
-                        answer=result.response_text,
-                        run_id=trace.run_id,
-                    )
-                    self._observability.record_event(
-                        trace,
-                        name="conversation.persisted",
-                        phase="persistence",
-                        attributes={"conversation_id": normalized.conversation_id},
-                        status="completed",
-                    )
+            ) as trace:
+                trace.conversation_id = normalized.conversation_id
                 self._observability.record_event(
                     trace,
-                    name="response.emitted",
-                    phase="response",
-                    attributes={"response_length": len(result.response_text)},
+                    name="request.normalized",
+                    phase="normalization",
+                    attributes={"question_present": bool(normalized.question)},
                     status="completed",
                 )
-                return ApplicationExecution(result=result, trace=trace)
-            except Exception as exc:
                 self._observability.record_event(
                     trace,
-                    name="execution.error",
-                    phase="execution",
-                    status="error",
-                    attributes={"error": type(exc).__name__},
+                    name="capability.selected",
+                    phase="decision",
+                    attributes={
+                        "capability": decision.capability.value,
+                        "reason": decision.reason,
+                    },
+                    status="completed",
                 )
-                raise
+                try:
+                    with self._observability.phase(
+                        trace, "capability.execute", "execution"
+                    ):
+                        raw = handler(normalized)
+                        if isawaitable(raw):
+                            raw = await raw
+                    result = self._coerce_result(
+                        raw,
+                        decision.capability,
+                        trace,
+                        normalized.conversation_id,
+                    )
+                    if (
+                        self._conversation_store is not None
+                        and decision.capability is Capability.QUESTION
+                    ):
+                        await ConversationService(self._conversation_store).record_turn(
+                            normalized.conversation_id,
+                            normalized.actor_id,
+                            question=normalized.question,
+                            answer=result.response_text,
+                            run_id=trace.run_id,
+                        )
+                        self._observability.record_event(
+                            trace,
+                            name="conversation.persisted",
+                            phase="persistence",
+                            attributes={"conversation_id": normalized.conversation_id},
+                            status="completed",
+                        )
+                    self._observability.record_event(
+                        trace,
+                        name="response.emitted",
+                        phase="response",
+                        attributes={"response_length": len(result.response_text)},
+                        status="completed",
+                    )
+                    return ApplicationExecution(result=result, trace=trace)
+                except Exception as exc:
+                    self._observability.record_event(
+                        trace,
+                        name="execution.error",
+                        phase="execution",
+                        status="error",
+                        attributes={"error": type(exc).__name__},
+                    )
+                    raise
+        except Exception as exc:
+            if self._telemetry is not None:
+                self._telemetry.record_error(
+                    decision.capability.value,
+                    type(exc).__name__,
+                )
+            raise
+        finally:
+            if self._telemetry is not None:
+                self._telemetry.record_duration_ms(
+                    decision.capability.value,
+                    (perf_counter() - started) * 1000.0,
+                )
+                if self._telemetry.snapshot() and self._telemetry.snapshot()[0].name:
+                    pass
 
     async def history(
         self,
