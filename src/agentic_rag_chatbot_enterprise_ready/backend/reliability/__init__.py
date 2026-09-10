@@ -2,6 +2,7 @@
 
 from .security import SecurityPolicy, SecurityPrincipal, principal_from_request
 from .security_audit import InMemorySecurityAuditSink, SecurityAuditEvent
+from .security_rbac import build_security_policy
 from .benchmark import (
     ArchitectureAggregate,
     ArchitectureBenchmark,
@@ -65,7 +66,7 @@ from .store import InMemoryReliabilityStore
 
 __all__ = [
     "AgentObservability", "SecurityPolicy", "SecurityPrincipal", "principal_from_request",
-    "SecurityAuditEvent", "InMemorySecurityAuditSink",
+    "SecurityAuditEvent", "InMemorySecurityAuditSink", "build_security_policy",
     "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
     "Claim", "ClaimEvidenceLink", "ClaimGroundingEvaluator", "GroundingResult",
     "Conversation", "ConversationMessage", "ConversationService", "ConversationStore", "InMemoryConversationStore", "ChainlitConversationStore",
