@@ -5,7 +5,7 @@ An enterprise-oriented Agentic RAG application and agent-engineering workbench f
 ## What the project contains
 
 ### Agentic RAG application
-- conversational interaction through the maintained frontend;
+- conversational interaction through the maintained Chainlit frontend;
 - document upload and indexing;
 - asynchronous indexing through the maintained Celery task boundary;
 - stable artifact identity and explicit background-task correlation;
@@ -35,7 +35,7 @@ Reviewed Regression
 Claim → Evidence Grounding
 ```
 
-The current implemented frontier is **Phase 74 — Frontend / API Integration**. The next planned capability is **Phase 75 — Enterprise / Production Readiness**.
+The current implementation is at **Phase 76 — Production Observability & Operations**. The next engineering frontier is **Phase 77 — Deployment & Release Readiness**.
 
 ## Reliability capabilities
 
@@ -46,7 +46,7 @@ The maintained reliability package includes:
 - agent observability;
 - deterministic scenario harnesses;
 - replay support;
-- retrospective analysis;
+- retrospective analysis and health monitoring;
 - scenario-aware evaluation;
 - regression promotion;
 - durable reliability storage;
@@ -54,7 +54,10 @@ The maintained reliability package includes:
 - deterministic end-to-end RAG scenarios;
 - provider-neutral conversation/message persistence;
 - background task and artifact identity contracts;
-- deterministic idempotency keys and failure classification.
+- deterministic idempotency keys and failure classification;
+- bounded operational metrics and telemetry retention;
+- provider-neutral alerting and failure triage;
+- bounded dashboard/export contracts and operational runbooks.
 
 These components are designed to remain provider-neutral and testable without requiring live cloud services.
 
@@ -68,6 +71,7 @@ These components are designed to remain provider-neutral and testable without re
 6. **No arbitrary code execution.** The retired remote sandbox/code-interpreter capability remains out of scope.
 7. **Provider boundaries.** Cloud SDKs and infrastructure integrations stay behind explicit application contracts.
 8. **Idempotency before retries.** Background work must have stable artifact identity and safe duplicate semantics before automatic retries are enabled.
+9. **Production packaging is explicit.** Runtime images, startup checks, configuration boundaries, rollback, and live cloud validation are release gates rather than assumptions.
 
 ## Development roadmap
 
@@ -81,21 +85,34 @@ Current direction:
 69     Document Ingestion → RAG Journey            ✓
 70     Retrieval → Grounded Answer Boundary        ✓
 71     Deterministic End-to-End RAG Journey        ✓
-72     Persistence & Conversation State            ✓
-73     Background Processing & Idempotency         ✓
-74     Frontend / API Integration                  ✓
-75–77  Enterprise / Production Readiness
+72     Persistence & Conversation State             ✓
+73     Background Processing & Idempotency          ✓
+74     Frontend / API Integration                   ✓
+75     Security & Governance                        ✓*
+76     Production Observability & Operations        ✓*
+77     Deployment & Release Readiness               →
 Later  Provider Expansion
 ```
 
+`*` Source implementation and deterministic validation are complete; live cloud validation remains environment-gated.
+
 ## Validation
 
-GitHub Actions is not used as the project's validation mechanism. Validation is based on local deterministic tests, contract tests, mocked integrations, static/import checks, and separately executed live-cloud integration checks where the required services and credentials exist.
+GitHub Actions is not the project's authoritative validation mechanism. Validation is based on local deterministic tests, contract tests, mocked integrations, static/import checks, release smoke tests, and separately executed live-cloud integration checks where the required services and credentials exist.
 
 Cloud-backed behavior is not considered production-verified solely because a dependency-isolated test passes.
+
+For container readiness, the canonical checks are:
+
+```text
+agentic-rag --check
+agentic-rag --frontend
+```
+
+The production container uses the same packaged entrypoint and runs as a non-root user. Environment-specific secrets remain outside the image.
 
 ## Security boundary
 
 Retrieved documents, uploaded files, web results, and tool outputs are treated as **data**, not as trusted instructions. Tool execution and structured analysis must remain explicitly bounded by application contracts.
 
-See [`docs/code-execution-retirement.md`](docs/code-execution-retirement.md) for the retired arbitrary-code-execution boundary.
+See [`docs/code-execution-retirement.md`](docs/code-execution-retirement.md) for the retired arbitrary-code-execution boundary and [`docs/phase-77-deployment-readiness.md`](docs/phase-77-deployment-readiness.md) for production deployment gates.
