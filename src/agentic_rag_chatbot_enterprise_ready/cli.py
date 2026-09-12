@@ -39,7 +39,20 @@ def cli() -> None:
     )
     parser.add_argument("--frontend", action="store_true", help="Run the Chainlit frontend")
     parser.add_argument("--check", action="store_true", help="Run deterministic startup checks")
+    parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Run deterministic Phase 77 release preflight checks",
+    )
     args = parser.parse_args()
+
+    if args.preflight:
+        from agentic_rag_chatbot_enterprise_ready.release_preflight import run_release_preflight
+
+        report = run_release_preflight(REPOSITORY_ROOT)
+        for check in report.checks:
+            print(f"{'OK' if check.passed else 'FAIL'}  {check.name}: {check.detail}")
+        raise SystemExit(0 if report.passed else 1)
 
     if args.check:
         from agentic_rag_chatbot_enterprise_ready.backend.runtime import run_startup_checks
