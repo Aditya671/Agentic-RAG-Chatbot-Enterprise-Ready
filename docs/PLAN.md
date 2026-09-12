@@ -1,7 +1,7 @@
 # Agentic RAG — End-to-End Development Plan
 
 **Status:** Active engineering roadmap  
-**Current implemented frontier:** Phase 77 — Deployment & Release Readiness (deterministic release preflight implemented; target-environment validation remains)  
+**Current implemented frontier:** Phase 77 — Deployment & Release Readiness (deterministic release-validation evidence implemented; target-environment validation remains)  
 **Primary goal:** Build a complete Agentic RAG application together with the engineering system required to observe, replay, evaluate, benchmark, and improve it.
 
 > This roadmap supersedes the previous application-only phase sequence. The repository has progressed beyond basic runtime hardening: it now contains a reliability foundation, observability, provenance, harness/replay, retrospective analysis, scenario-aware evaluation, regression promotion, durable reliability storage, claim/evidence grounding, a canonical application runtime, canonical document ingestion, a retrieval-to-grounded-answer boundary, an end-to-end RAG scenario, provider-neutral conversation persistence, a background processing/idempotency boundary, the client-facing application surface, and the Phase 75 security/governance enforcement layers.
@@ -70,7 +70,7 @@ Phases 68–74 remain complete as previously documented: canonical runtime, docu
 
 ### Phase 75 — Security & Governance
 
-**Implemented frontier.** The phase has deterministic implementation coverage across the planned security gates, with the remaining live authenticated ownership/security run reserved for the target deployment environment.
+**Implemented frontier.** The phase now has deterministic implementation coverage across all planned security gates, with the remaining live authenticated ownership/security run reserved for the target deployment environment.
 
 ### Phase 76 — Production Observability & Operations
 
@@ -88,7 +88,8 @@ Phases 68–74 remain complete as previously documented: canonical runtime, docu
 - external runtime configuration and secret handling rules;
 - immutable `ReleaseManifest` identity containing release ID, exact source commit SHA, image digest, configuration version, and creation timestamp;
 - deterministic validation of release-manifest identity fields without storing secrets or raw configuration values;
-- deployment and rollback documentation requiring immutable image/configuration artifacts.
+- immutable `ReleaseValidationReport` / `ValidationGate` contracts for recording target-environment promotion and rollback evidence with explicit `pass`, `fail`, `blocked`, or `not_run` states;
+- deployment and rollback documentation requiring immutable image/configuration artifacts and validation evidence.
 
 Remaining Phase 77 gates:
 
@@ -160,6 +161,7 @@ Technology is not added merely because it is enterprise-branded.
 - [x] Production packaging and canonical container startup are defined.
 - [x] Immutable release identity contract exists for promotion/rollback evidence.
 - [x] Deterministic release preflight gate exists and is exposed through the canonical CLI.
+- [x] Deterministic release-validation evidence contract exists with explicit blocked/not-run states.
 - [ ] Live authenticated identity/tenant ownership validation executed against the target cloud deployment.
 - [ ] Deployment image built and executed in the target production-like environment.
 - [ ] Azure/configuration dependency mapping validated with real deployment settings.
@@ -201,4 +203,4 @@ Provider Expansion
 
 **Phase 77 — Target-Environment Validation & Release Closure.**
 
-Execute the existing preflight/container/startup path against the target non-production environment, validate real Azure and persistence dependencies, run the outstanding Phase 75 authenticated security procedure, exercise smoke and rollback paths, and record immutable release evidence. Once those gates pass, the project reaches its production-release closure boundary before any post-MVP provider expansion.
+Execute the existing preflight/container/startup path against the target non-production environment, validate real Azure and persistence dependencies, run the outstanding Phase 75 authenticated security procedure, exercise smoke and rollback paths, and record immutable `ReleaseManifest` plus `ReleaseValidationReport` evidence. Once those gates pass, the project reaches its production-release closure boundary before any post-MVP provider expansion.
