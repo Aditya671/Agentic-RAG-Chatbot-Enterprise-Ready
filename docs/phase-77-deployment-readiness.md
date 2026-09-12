@@ -81,6 +81,17 @@ The manifest contains release identity only. Secrets, tokens, credentials, and r
 
 Use the manifest as the handoff artifact between build, validation, promotion, and rollback. Do not identify a production release only by a mutable branch, tag, or floating image tag.
 
+## Deterministic validation evidence
+
+Target-environment validation results should be captured as a `ReleaseValidationReport` containing:
+
+- the release identifier and exact source commit SHA;
+- one bounded `ValidationGate` for each required release gate;
+- one of `pass`, `fail`, `blocked`, or `not_run` for every gate;
+- bounded operator detail only.
+
+A report is eligible for promotion only when every recorded gate is `pass`. A `blocked` or `not_run` gate is never treated as an implicit success. The validation contract stores no credentials, tokens, prompts, request payloads, or raw cloud configuration values.
+
 ## Release sequence
 
 1. Run `agentic-rag --preflight` on the intended release checkout.
@@ -92,20 +103,22 @@ Use the manifest as the handoff artifact between build, validation, promotion, a
 7. Exercise a deterministic smoke path: authenticated question, supported upload, indexing submission/status, and conversation persistence where configured.
 8. Inspect operational health, bounded metrics, alerts, and dashboard export.
 9. Run the Phase 75 live ownership/security procedure against the target non-production environment before promotion.
-10. Record the validated release manifest and validation outcome.
+10. Record the `ReleaseValidationReport`, validated release manifest, image digest, configuration version, and validation outcome.
 
 ## Rollback gate
 
-Every release must retain the previous known-good `ReleaseManifest`. Rollback means restoring that manifest's immutable image digest and configuration version rather than rebuilding from a moving branch.
+Every release must retain the previous known-good `ReleaseManifest` and its corresponding validation report. Rollback means restoring that manifest's immutable image digest and configuration version rather than rebuilding from a moving branch.
 
 After rollback, repeat:
 
+- release preflight;
 - startup check;
 - liveness/readiness verification;
 - authentication and ownership smoke test;
 - one question path;
 - one bounded upload/indexing path;
-- operational dashboard/alert inspection.
+- operational dashboard/alert inspection;
+- release-validation recording.
 
 ## Scale assumptions
 
