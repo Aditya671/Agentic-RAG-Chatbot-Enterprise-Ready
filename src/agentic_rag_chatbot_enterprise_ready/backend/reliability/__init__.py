@@ -13,6 +13,7 @@ from .alerting import Alert, AlertEngine, AlertPolicy, AlertRule, AlertSeverity
 from .triage import FailureTriage, FailureTriageEngine, TriageItem, TriagePriority
 from .ops_dashboard import OperationalDashboard, OperationalDashboardBuilder, export_dashboard
 from .release import ReleaseManifest, validate_release_manifest
+from .release_validation import ReleaseValidationReport, ValidationGate, ValidationStatus, validate_release_report
 from .benchmark import (
     ArchitectureAggregate,
     ArchitectureBenchmark,
@@ -75,7 +76,7 @@ from .scenario_evaluation import ScenarioEvaluationEngine, ScenarioEvaluationRes
 from .store import InMemoryReliabilityStore
 
 __all__ = [
-    "AgentObservability", "HealthCheck", "HealthReport", "HealthService", "HealthStatus", "InMemoryMetrics", "MetricSnapshot", "TelemetryRetentionPolicy", "RetainedAuditSink", "RetainedTraceStore", "OperationalTelemetry", "build_operational_telemetry", "Alert", "AlertEngine", "AlertPolicy", "AlertRule", "AlertSeverity", "FailureTriage", "FailureTriageEngine", "TriageItem", "TriagePriority", "OperationalDashboard", "OperationalDashboardBuilder", "export_dashboard", "ReleaseManifest", "validate_release_manifest",
+    "AgentObservability", "HealthCheck", "HealthReport", "HealthService", "HealthStatus", "InMemoryMetrics", "MetricSnapshot", "TelemetryRetentionPolicy", "RetainedAuditSink", "RetainedTraceStore", "OperationalTelemetry", "build_operational_telemetry", "Alert", "AlertEngine", "AlertPolicy", "AlertRule", "AlertSeverity", "FailureTriage", "FailureTriageEngine", "TriageItem", "TriagePriority", "OperationalDashboard", "OperationalDashboardBuilder", "export_dashboard", "ReleaseManifest", "validate_release_manifest", "ReleaseValidationReport", "ValidationGate", "ValidationStatus", "validate_release_report",
     "SecurityPolicy", "SecurityPrincipal", "principal_from_request",
     "SecurityAuditEvent", "InMemorySecurityAuditSink", "JsonlSecurityAuditSink", "build_security_policy",
     "ArtifactIdempotencyStore", "ArtifactIdentity", "BackgroundTask", "BackgroundTaskStore",
